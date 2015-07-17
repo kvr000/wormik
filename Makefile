@@ -12,14 +12,14 @@ TARG=wormik
 
 SOURCES= \
 	main.cxx \
-	game.cxx \
+	WormikGame.cxx \
 	gui_common.cxx \
-	gui_sdl.cxx \
+	Wormik_SDL.cxx \
 
 OBJECTS= \
 	 main.o \
-	 game.o \
-	 gui_sdl.o \
+	 WormikGame.o \
+	 Wormik_SDL.o \
 	 gui_common.o \
 
 default: $(TARG)
