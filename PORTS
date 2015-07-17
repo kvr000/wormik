@@ -1,0 +1,2 @@
+Windows:
+	provided as a patch as windows support for POSIX is very limited among linked shared libraries.
