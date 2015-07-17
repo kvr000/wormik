@@ -49,9 +49,9 @@ diff -urN wormik/bconfig.h wormik-windos/bconfig.h
 +#define HAVE_UNISTD_H
 +
 +#endif
-diff -urN wormik/game.cxx wormik-windos/game.cxx
---- wormik/game.cxx	2003-11-28 14:58:08.000000000 +0100
-+++ wormik-windos/game.cxx	2003-11-28 15:17:56.000000000 +0100
+diff -urN wormik/WormikGame.cxx wormik-windos/WormikGame.cxx
+--- wormik/WormikGame.cxx	2003-11-28 14:58:08.000000000 +0100
++++ wormik-windos/WormikGame.cxx	2003-11-28 15:17:56.000000000 +0100
 @@ -4,6 +4,8 @@
   *
   * Game class
@@ -136,9 +136,9 @@ diff -urN wormik/gui_common.cxx wormik-windos/gui_common.cxx
  	},
  };
  
-diff -urN wormik/gui_sdl.cxx wormik-windos/gui_sdl.cxx
---- wormik/gui_sdl.cxx	2003-11-28 14:58:24.000000000 +0100
-+++ wormik-windos/gui_sdl.cxx	2003-11-28 15:18:58.000000000 +0100
+diff -urN wormik/Wormik_SDL.cxx wormik-windos/Wormik_SDL.cxx
+--- wormik/Wormik_SDL.cxx	2003-11-28 14:58:24.000000000 +0100
++++ wormik-windos/Wormik_SDL.cxx	2003-11-28 15:18:58.000000000 +0100
 @@ -5,6 +5,8 @@
   * SDL GUI class
   */
@@ -332,7 +332,7 @@ diff -urN wormik/wormik.dsp wormik-windos/wormik.dsp
 +# PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 +# Begin Source File
 +
-+SOURCE=.\game.cxx
++SOURCE=.\WormikGame.cxx
 +# End Source File
 +# Begin Source File
 +
@@ -340,7 +340,7 @@ diff -urN wormik/wormik.dsp wormik-windos/wormik.dsp
 +# End Source File
 +# Begin Source File
 +
-+SOURCE=.\gui_sdl.cxx
++SOURCE=.\Wormik_SDL.cxx
 +# End Source File
 +# Begin Source File
 +
