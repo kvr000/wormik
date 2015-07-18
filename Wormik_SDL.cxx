@@ -17,10 +17,10 @@
 #include <time.h>
 #include <sys/time.h>
 
-#include <SDL/SDL.h>
-#include <SDL/SDL_image.h>
-#include <SDL/SDL_video.h>
-#include <SDL/SDL_ttf.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_video.h>
+#include <SDL2/SDL_ttf.h>
 
 #include "WormikGame_If.hxx"
 
