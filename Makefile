@@ -4,7 +4,7 @@ CXX=g++
 #ADV=-DTESTOPTS
 
 LIBS=-lSDL -lSDL_image -lSDL_ttf
-CFLAGS=-DSVERSION=\"1.0\" -DNDEBUG -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
+CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g
