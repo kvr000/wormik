@@ -18,14 +18,17 @@
 
 #include <sys/stat.h>
 
-#include "WormikGame_If.hxx"
-#include "WormikGui_If.hxx"
+#include "cz/znj/sw/wormik/WormikGame.hxx"
+#include "cz/znj/sw/wormik/WormikGui.hxx"
 
-class WormikGame: public WormikGame_If
+namespace cz { namespace znj { namespace sw { namespace wormik {
+
+
+class WormikGameImpl: public WormikGame
 {
 protected:
 	/* gui interface */
-	WormikGui_If *			gui;
+	WormikGui *			gui;
 
 	/* game state */
 	int				state_game;			/* game state */
@@ -78,10 +81,10 @@ protected:
 	unsigned			ndlen;			/* (and their count) */
 
 public:
-	/* constructor */		WormikGame();
+	/* constructor */		WormikGameImpl();
 
 public:
-	virtual void			setGui(WormikGui_If *gui);
+	virtual void			setGui(WormikGui *gui);
 	virtual void			run(void);
 
 	virtual int			getConfigStr(const char *name, char *buf, int blen);
@@ -137,8 +140,7 @@ static int randrange(int min, int max)
 	return min+(long long)rand()*(max-min+1)/((unsigned)RAND_MAX+1);
 }
 
-WormikGame::WormikGame():
-	WormikGame_If()
+WormikGameImpl::WormikGameImpl()
 {
 	char buf[1024];
 	int i = 0;
@@ -154,7 +156,7 @@ WormikGame::WormikGame():
 	assert(i == DEFCNTSMAX);
 }
 
-void WormikGame::setGui(WormikGui_If *gui_)
+void WormikGameImpl::setGui(WormikGui *gui_)
 {
 	gui = gui_;
 }
@@ -176,14 +178,14 @@ FILE *openConfig(int mode)
 	return fdopen(fd, (mode == O_RDONLY)?"r":"r+");
 }
 
-void WormikGame::setConfig(const char *name, int value)
+void WormikGameImpl::setConfig(const char *name, int value)
 {
 	char buf[32];
 	sprintf(buf, "%d", value);
 	setConfig(name, buf);
 }
 
-void WormikGame::setConfig(const char *name, const char *value)
+void WormikGameImpl::setConfig(const char *name, const char *value)
 {
 	char buf[256];
 	FILE *cf;
@@ -219,7 +221,7 @@ err:
 	fclose(cf);
 }
 
-int WormikGame::getConfigInt(const char *name, int defval)
+int WormikGameImpl::getConfigInt(const char *name, int defval)
 {
 	char buf[16];
 	if ((unsigned)getConfigStr(name, buf, sizeof(buf)) >= sizeof(buf))
@@ -227,7 +229,7 @@ int WormikGame::getConfigInt(const char *name, int defval)
 	return strtol(buf, NULL, 0);
 }
 
-int WormikGame::getConfigStr(const char *name, char *str, int buflen)
+int WormikGameImpl::getConfigStr(const char *name, char *str, int buflen)
 {
 	char buf[256];
 	FILE *cf;
@@ -255,33 +257,33 @@ int WormikGame::getConfigStr(const char *name, char *str, int buflen)
 	return vl;
 }
 
-void WormikGame::changeDirection(int dir_)
+void WormikGameImpl::changeDirection(int dir_)
 {
 	if (dir_ != GR_GET_IN(board[snake_pos[0].y][snake_pos[0].x]))
 		snake_dir = dir_;
 }
 
-int WormikGame::getState(int *level, int *season)
+int WormikGameImpl::getState(int *level, int *season)
 {
 	*level = state_level;
 	*season = state_season;
 	return state_game;
 }
 
-int WormikGame::getScore(int *score, int *total)
+int WormikGameImpl::getScore(int *score, int *total)
 {
 	*score = state_levscore;
 	*total = state_totscore;
 	return state_exitscore;
 }
 
-void WormikGame::getSnakeInfo(int *health, int *length)
+void WormikGameImpl::getSnakeInfo(int *health, int *length)
 {
 	*health = snake_health;
 	*length = snake_len;
 }
 
-int WormikGame::getRecord(int *record, time_t *rectime)
+int WormikGameImpl::getRecord(int *record, time_t *rectime)
 {
 	*rectime = stats_rectime;
 	if ((*record = stats_record) < 0) {
@@ -291,13 +293,13 @@ int WormikGame::getRecord(int *record, time_t *rectime)
 	return 0;
 }
 
-void WormikGame::outPoint(void *gc, unsigned x, unsigned y)
+void WormikGameImpl::outPoint(void *gc, unsigned x, unsigned y)
 {
 	if (board[y][x] != GR_NEWDEF)
 		gui->drawPoint(gc, x, y, board[y][x]);
 }
 
-void WormikGame::outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1)
+void WormikGameImpl::outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1)
 {
 	assert(x0 >= 0);
 	assert(y0 >= 0);
@@ -310,7 +312,7 @@ void WormikGame::outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsign
 	}
 }
 
-int WormikGame::outNewdefs(void *gc)
+int WormikGameImpl::outNewdefs(void *gc)
 {
 	int ret = 0;
 	unsigned i;
@@ -320,10 +322,10 @@ int WormikGame::outNewdefs(void *gc)
 	return ret;
 }
 
-static void gwCheckAccess(short (*access)[WormikGame::GAME_XSIZE], unsigned x, unsigned y)
+static void gwCheckAccess(short (*access)[WormikGameImpl::GAME_XSIZE], unsigned x, unsigned y)
 {
 	unsigned tlen;
-	short tlist[WormikGame::GAME_YSIZE*WormikGame::GAME_XSIZE][2];
+	short tlist[WormikGameImpl::GAME_YSIZE*WormikGameImpl::GAME_XSIZE][2];
 
 	tlen = 0;
 	tlist[tlen][0] = x; tlist[tlen][1] = y; tlen++;
@@ -351,7 +353,7 @@ static void gwCheckAccess(short (*access)[WormikGame::GAME_XSIZE], unsigned x, u
 	}
 }
 
-int WormikGame::generateWalls(unsigned headx, unsigned heady)
+int WormikGameImpl::generateWalls(unsigned headx, unsigned heady)
 {
 	unsigned wallcnt, deathcnt;
 	short access[GAME_YSIZE][GAME_XSIZE];
@@ -472,7 +474,7 @@ int WormikGame::generateWalls(unsigned headx, unsigned heady)
 	return wallcnt+deathcnt;
 }
 
-void WormikGame::generateType(board_def type, int num, unsigned char old)
+void WormikGameImpl::generateType(board_def type, int num, unsigned char old)
 {
 	unsigned x, y;
 	while (num--) {
@@ -485,7 +487,7 @@ void WormikGame::generateType(board_def type, int num, unsigned char old)
 	}
 }
 
-void WormikGame::initBoard()
+void WormikGameImpl::initBoard()
 {
 	unsigned x, y;
 
@@ -546,7 +548,7 @@ void WormikGame::initBoard()
 	state_season = gui->newLevel(state_season);
 }
 
-void WormikGame::decDefs(board_def def)
+void WormikGameImpl::decDefs(board_def def)
 {
 	unsigned i;
 	for (i = 0; ; i++) {
@@ -559,7 +561,7 @@ void WormikGame::decDefs(board_def def)
 	freecnt++;
 }
 
-int WormikGame::genDef(float latency)
+int WormikGameImpl::genDef(float latency)
 {
 	unsigned x, y;
 	unsigned l;
@@ -606,11 +608,11 @@ int WormikGame::genDef(float latency)
 	defcnts[bi].cnt++;
 	board[y][x] = GR_NEWDEF;
 	freecnt--;
-	gui->invalOut(-WormikGui_If::INVO_NEWDEFS, NULL);
+	gui->invalOut(-WormikGui::INVO_NEWDEFS, NULL);
 	return 1;
 }
 
-int WormikGame::delNewdef(unsigned x, unsigned y)
+int WormikGameImpl::delNewdef(unsigned x, unsigned y)
 {
 	unsigned p[2];
 	board_def def;
@@ -650,7 +652,7 @@ int WormikGame::delNewdef(unsigned x, unsigned y)
 	return delit;
 }
 
-void WormikGame::run(void)
+void WormikGameImpl::run(void)
 {
 	int action = 2; /* exit: 1; dead: 2, quit: 3 */
 
@@ -694,7 +696,7 @@ void WormikGame::run(void)
 
 			if ((tout_health -= inter) <= 0) {
 				snake_health++;
-				invof |= WormikGui_If::INVO_HEALTH;
+				invof |= WormikGui::INVO_HEALTH;
 				if (tadd_health < 8.0)
 					tadd_health += 2.0;
 				else if (tadd_health < 12.0)
@@ -734,7 +736,7 @@ step_hit:
 			case GR_WALL:
 			case GR_DEATH:
 				action = 2;
-				invof |= WormikGui_If::INVO_HEALTH;
+				invof |= WormikGui::INVO_HEALTH;
 				break;
 			default: // snake
 				if (GR_GET_FTYPE(board[npos[1]][npos[0]]) == GR_BSNAKE+GSF_SNAKETAIL)
@@ -761,9 +763,9 @@ step_hit:
 					board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x] = GR_SNAKE(GSF_SNAKETAIL, 0, GR_GET_OUT(board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x]));
 					inval[il][0] = snake_pos[snake_len-1].x; inval[il][1] = snake_pos[snake_len-1].y; il++;
 					gui->invalOut(il, inval);
-					gui->invalOut(-WormikGui_If::INVO_LENGTH, NULL);
+					gui->invalOut(-WormikGui::INVO_LENGTH, NULL);
 				}
-				invof |= WormikGui_If::INVO_HEALTH;
+				invof |= WormikGui::INVO_HEALTH;
 				break;
 			case GR_NEWDEF:
 				if (delNewdef(npos[0], npos[1]) == 0)
@@ -782,7 +784,7 @@ step_hit:
 				decDefs(GR_POSIT2);
 				break;
 			case GR_NEGAT:
-				invof |= WormikGui_If::INVO_HEALTH;
+				invof |= WormikGui::INVO_HEALTH;
 				if ((snake_health -= 1) <= 0)
 					break;
 				decDefs(GR_NEGAT);
@@ -790,7 +792,7 @@ step_hit:
 				break;
 			case GR_EXIT:
 				state_levscore += 12*state_level+8*(state_level/4);
-				invof |= WormikGui_If::INVO_SCORE;
+				invof |= WormikGui::INVO_SCORE;
 				action = 1;
 				break;
 			}
@@ -799,11 +801,11 @@ step_hit:
 			}
 			if (state_levscore != oldscore) {
 				state_totscore += state_levscore-oldscore;
-				gui->invalOut(-WormikGui_If::INVO_SCORE, NULL);
+				gui->invalOut(-WormikGui::INVO_SCORE, NULL);
 				if ((stats_record < 0 || state_totscore > (unsigned)stats_record)) {
 					stats_record = -state_totscore;
 					stats_rectime = time(NULL);
-					gui->invalOut(-WormikGui_If::INVO_RECORD, NULL);
+					gui->invalOut(-WormikGui::INVO_RECORD, NULL);
 				}
 			}
 			if (action == 0) {
@@ -827,7 +829,7 @@ step_hit:
 				}
 				if (--snake_grow >= 0) {
 					snake_len++;
-					invof |= WormikGui_If::INVO_LENGTH;
+					invof |= WormikGui::INVO_LENGTH;
 					freecnt--;
 				}
 				else {
@@ -889,11 +891,11 @@ step_hit:
 			saveRecord();
 		switch (action) {
 		case 1:
-			if (gui->announce(WormikGui_If::ANC_EXIT) > 0)
+			if (gui->announce(WormikGui::ANC_EXIT) > 0)
 				goto quit;
 			break;
 		case 2:
-			if (gui->announce(WormikGui_If::ANC_DEAD) > 0)
+			if (gui->announce(WormikGui::ANC_DEAD) > 0)
 				goto quit;
 			break;
 		}
@@ -905,7 +907,7 @@ quit:
 	exit(0);
 }
 
-int WormikGame::error(const char *fmt, ...)
+int WormikGameImpl::error(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
@@ -913,12 +915,12 @@ int WormikGame::error(const char *fmt, ...)
 	return 0;
 }
 
-void WormikGame::fatal()
+void WormikGameImpl::fatal()
 {
 	exit(1);
 }
 
-void WormikGame::fatal(const char *fmt, ...)
+void WormikGameImpl::fatal(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
@@ -927,7 +929,7 @@ void WormikGame::fatal(const char *fmt, ...)
 	fatal();
 }
 
-void WormikGame::saveRecord()
+void WormikGameImpl::saveRecord()
 {
 	int record; time_t rectime;
 	char recs[64];
@@ -936,7 +938,7 @@ void WormikGame::saveRecord()
 	setConfig("record", recs);
 }
 
-void WormikGame::exit(int n)
+void WormikGameImpl::exit(int n)
 {
 	gui->shutdown(this);
 	delete gui;
@@ -944,7 +946,10 @@ void WormikGame::exit(int n)
 	::exit(n);
 }
 
-WormikGame_If *create_WormikGame()
+WormikGame *create_WormikGame()
 {
-	return new WormikGame();
+	return new WormikGameImpl();
 }
+
+
+} } } };

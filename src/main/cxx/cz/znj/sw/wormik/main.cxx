@@ -15,21 +15,30 @@
 #include <assert.h>
 #include <time.h>
 
-#include "WormikGame_If.hxx"
-#include "WormikGui_If.hxx"
+#include "cz/znj/sw/wormik/WormikGame.hxx"
+#include "cz/znj/sw/wormik/WormikGui.hxx"
 
-extern WormikGui_If *create_Wormik_SDL();
-extern WormikGame_If *create_WormikGame();
+namespace cz { namespace znj { namespace sw { namespace wormik {
+
+
+extern WormikGui *create_WormikGui();
+extern WormikGame *create_WormikGame();
+
+
+} } } };
+
+using namespace cz::znj::sw::wormik;
+
 
 int main(void)
 {
-	WormikGame_If *game;
-	WormikGui_If *gui;
+	WormikGame *game;
+	WormikGui *gui;
 
 	srand(time(NULL));
 
 	game = create_WormikGame();
-	gui = create_Wormik_SDL();
+	gui = create_WormikGui();
 	game->setGui(gui);
 	if (gui->init(game) < 0) {
 		delete game;
