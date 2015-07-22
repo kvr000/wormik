@@ -3,31 +3,32 @@ CXX=g++
 
 #ADV=-DTESTOPTS
 
-LIBS=-lSDL -lSDL_image -lSDL_ttf
-CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
+LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
+CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Isrc/main/cxx/ -Wall -O0 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g
-TARG=wormik
+RESOURCES=target/wormik_0.png target/wormik_1.png target/wormik_2.png target/wormik_3.png
+TARGET=target/wormik target/wormik_0.png
 
 SOURCES= \
-	main.cxx \
-	WormikGame.cxx \
-	gui_common.cxx \
-	Wormik_SDL.cxx \
+	src/main/cxx/cz/znj/sw/wormik/main.cxx \
+	src/main/cxx/cz/znj/sw/wormik/WormikGameImpl.cxx \
+	src/main/cxx/cz/znj/sw/wormik/gui_common.cxx \
+	src/main/cxx/cz/znj/sw/wormik/SdlWormikGui.cxx \
 
 OBJECTS= \
-	 main.o \
-	 WormikGame.o \
-	 Wormik_SDL.o \
-	 gui_common.o \
+	target/object/cz/znj/sw/wormik/main.o \
+	target/object/cz/znj/sw/wormik/WormikGameImpl.o \
+	target/object/cz/znj/sw/wormik/SdlWormikGui.o \
+	target/object/cz/znj/sw/wormik/gui_common.o \
 
-default: $(TARG)
+default: $(TARGET) $(RESOURCES)
 
-run: r$(TARG)
+run: r$(TARGET)
 
 clean:
-	rm -f $(TARG) $(OBJECTS)
+	rm -f $(TARGET) $(OBJECTS)
 
 no_tags:
 	rm -f tags
@@ -40,15 +41,38 @@ tar:
 btar:
 	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/{README,wormik,wormik_?.png} | gzip -9 >$$b/wormik-bin.tar.gz
 
-wormik: $(OBJECTS)
+target/wormik: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
-	echo $(CFLAGS) | grep -- -O0 >/dev/null || strip $@
+	#echo $(CFLAGS) | grep -- -O0 >/dev/null || strip $@
+
+target/object/cz/znj/sw/wormik/main.o: src/main/cxx/cz/znj/sw/wormik/main.cxx
+	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	$(CXX) -o $@ -c $< $(CFLAGS)
+target/object/cz/znj/sw/wormik/WormikGameImpl.o: src/main/cxx/cz/znj/sw/wormik/WormikGameImpl.cxx
+	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	$(CXX) -o $@ -c $< $(CFLAGS)
+target/object/cz/znj/sw/wormik/gui_common.o: src/main/cxx/cz/znj/sw/wormik/gui_common.cxx
+	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	$(CXX) -o $@ -c $< $(CFLAGS)
+target/object/cz/znj/sw/wormik/SdlWormikGui.o: src/main/cxx/cz/znj/sw/wormik/SdlWormikGui.cxx
+	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	$(CXX) -o $@ -c $< $(CFLAGS)
+
+target/wormik_0.png: src/main/resources/wormik_0.png
+	cp -a $< $@
+target/wormik_1.png: src/main/resources/wormik_1.png
+	cp -a $< $@
+target/wormik_2.png: src/main/resources/wormik_2.png
+	cp -a $< $@
+target/wormik_3.png: src/main/resources/wormik_3.png
+	cp -a $< $@
 
 depends:
-	$(CXX) -MM $(SOURCES) >.depends
+	$(CXX) -MM $(SOURCES) >target/.depends
 
-.depends:
-	touch .depends
+target/.depends:
+	[ -d target ] || mkdir target
+	touch target/.depends
 	$(MAKE) depends
 
 %.o: %.cxx
@@ -56,4 +80,4 @@ depends:
 %.s: %.cxx
 	$(CC) -o $@ -S $< $(CFLAGS)
 
-include .depends
+include target/.depends

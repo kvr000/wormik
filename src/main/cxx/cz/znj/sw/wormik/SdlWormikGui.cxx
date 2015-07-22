@@ -22,15 +22,19 @@
 #include <SDL2/SDL_video.h>
 #include <SDL2/SDL_ttf.h>
 
-#include "WormikGame_If.hxx"
+#include "cz/znj/sw/wormik/WormikGame.hxx"
 
-#include "WormikGui_If.hxx"
+#include "cz/znj/sw/wormik/WormikGui.hxx"
 
-#include "gui_common.hxx"
+#include "cz/znj/sw/wormik/gui_common.hxx"
+
+namespace cz { namespace znj { namespace sw { namespace wormik {
+
 
 using namespace gui4x6x16;
 
-class Wormik_SDL: public WormikGui_If
+
+class SdlWormikGui: public WormikGui
 {
 public:
 	enum {
@@ -54,13 +58,19 @@ public:
 	};
 
 protected:
-	SDL_Surface *			win;			/**< main window */
+	SDL_Window *			window;			/**< main window */
+	SDL_Renderer *			windowRenderer;		/**< main renderer */
+	SDL_PixelFormat *		windowPixelFormat;	/**< main window pixel format */
 
-	SDL_Surface *			simg;			/**< season image */
-	SDL_Surface *			bsimg;			/**< season image (without alpha, with drawn background) */
+	SDL_Renderer *			textureRenderer;	/**< generic texture renderer */
+
+	SDL_PixelFormat *		argbPixelFormat;	/**< ARGB8888 pixel format */
+
+	SDL_Texture *			seasonImage;		/**< season image */
+	SDL_Texture *			bgSeasonImage;		/**< season image (without alpha, with drawn background) */
 	TTF_Font *			font;			/**< output font */
 
-	WormikGame_If *			game;			/**< game interface */
+	WormikGame *			game;			/**< game interface */
 
 	unsigned			colors[CLR_COUNT];	/**< colors (see CLR_* definitions) */
 
@@ -68,15 +78,16 @@ protected:
 	double				lastmove;		/**< time of last game update */
 
 	InvalList			invlist[2];		/**< invalid regions list */
-	unsigned			ilcur;			/**< current invlist */
+	unsigned			currentInvList;		/**< current invlist */
 	bool				redraw;			/**< screen needs redraw */
 
 public:
-	/* constructor */		Wormik_SDL();
+	/* constructor */		SdlWormikGui();
+	virtual				~SdlWormikGui();
 
 public:
-	virtual int			init(WormikGame_If *game);
-	virtual void			shutdown(WormikGame_If *game);
+	virtual int			init(WormikGame *game);
+	virtual void			shutdown(WormikGame *game);
 	virtual int			newLevel(int season);
 
 	virtual void			drawPoint(void *gc, unsigned x, unsigned y, unsigned short type);
@@ -89,11 +100,18 @@ public:
 
 protected:
 	int				initSurface();
-	int				initSImage(SDL_Surface *img);
+	int				initSeasonImage(SDL_Texture *img);
+
+	int				initGui();
+	void				closeGui();
 
 	void				drawLTextf(int x, int y, Uint32 color, const char *fmt, ...);
 	void				drawText(int x, int y, Uint32 color, const char *text);
-	/* returns number of pending "newdefs" */
+
+	/**
+	 * @return
+	 * 	number of pending "newdefs"
+	 */
 	unsigned			drawBase();
 	unsigned			drawAnnounce(unsigned n, const char *text[]);
 	void				drawFinish(unsigned rflags);
@@ -111,32 +129,39 @@ static double getdtime(void)
 	return t.tv_sec+t.tv_usec/1000000.0;
 }
 
-Wormik_SDL::Wormik_SDL()
+SdlWormikGui::SdlWormikGui()
 {
-	win = NULL;
-	bsimg = NULL;
-	simg = NULL;
+	window = NULL;
+	windowRenderer = NULL;
+	windowPixelFormat = NULL;
+	bgSeasonImage = NULL;
+	seasonImage = NULL;
 	font = NULL;
 	game = NULL;
 }
 
-int Wormik_SDL::initSurface()
+SdlWormikGui::~SdlWormikGui()
 {
-	SDL_WM_SetCaption("Wormik", NULL);
+}
+
+int SdlWormikGui::initSurface()
+{
+	SDL_SetWindowTitle(window, "Wormik");
 	SDL_ShowCursor(SDL_DISABLE);
 
-	if (!(bsimg = SDL_CreateRGBSurface(SDL_HWSURFACE, SIMG_WIDTH, SIMG_HEIGTH, win->format->BitsPerPixel, win->format->Rmask, win->format->Gmask, win->format->Bmask, 0))) {
-		game->error("couldn't create bsimg surface: %s\n", SDL_GetError());
+
+	if (!(bgSeasonImage = SDL_CreateTexture(windowRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SIMG_WIDTH, SIMG_HEIGTH))) {
+		game->error("couldn't create bgSeasonImage texture: %s\n", SDL_GetError());
 		return -1;
 	}
 
 #if 0
-	colors[CLR_MENUBG] = SDL_MapRGB(win->format, 0, 0, 0);
-	colors[CLR_MENUFNT] = SDL_MapRGB(win->format, 255, 255, 255);
-	colors[CLR_MENUEXC] = SDL_MapRGB(win->format, 255, 255, 200);
+	colors[CLR_MENUBG] = SDL_MapRGB(windowPixelFormat, 0, 0, 0);
+	colors[CLR_MENUFNT] = SDL_MapRGB(windowPixelFormat, 255, 255, 255);
+	colors[CLR_MENUEXC] = SDL_MapRGB(windowPixelFormat, 255, 255, 200);
 #endif
 
-	ilcur = 0;
+	currentInvList = 0;
 	invlist[0].reset(INVO_MFULL); invlist[1].reset(INVO_MFULL);
 
 	return 0;
@@ -173,6 +198,7 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 				pclose(lp);
 			}
 			break;
+
 		case 'd':
 			{
 				char buf[PATH_MAX];
@@ -181,6 +207,7 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 				f = SDL_RWFromFile(buf, "r");
 			}
 			break;
+
 		case 's':
 			{
 				FILE *fp;
@@ -201,6 +228,7 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 				pclose(fp);
 			}
 			break;
+
 		default:
 			assert(0);
 			break;
@@ -210,21 +238,40 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 	return f;
 }
 
-int Wormik_SDL::init(WormikGame_If *game_)
+int SdlWormikGui::init(WormikGame *game_)
 {
-	char buf[PATH_MAX];
-	SDL_RWops *ffo = NULL;
-
 	game = game_;
 
 	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER) < 0) {
 		game->error("Couldn't init SDL: %s\n", SDL_GetError());
+		return -1;
+	}
+	if (initGui() < 0) {
+		shutdown(game);
+		return -1;
+	}
+	return 0;
+}
+
+int SdlWormikGui::initGui()
+{
+	char buf[PATH_MAX];
+	SDL_RWops *ffo = NULL;
+
+	argbPixelFormat = SDL_AllocFormat(SDL_PIXELFORMAT_ARGB8888);
+	if (SDL_CreateWindowAndRenderer(640, 480, (game->getConfigInt("fullscreen", 1)?SDL_WINDOW_FULLSCREEN:0), &window, &windowRenderer) != 0) {
+		game->error("Couldn't create window: %s\n", SDL_GetError());
 		goto err;
 	}
-	if (!(win = SDL_SetVideoMode(640, 480, 0, SDL_HWSURFACE|SDL_DOUBLEBUF|(game->getConfigInt("fullscreen", 1)?SDL_FULLSCREEN:0)))) {
-		game->error("Couldn't set video mode: %s\n", SDL_GetError());
+	if ((textureRenderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE)) != NULL) {
+		game->error("Couldn't create texture renderer: %s\n", SDL_GetError());
 		goto err;
 	}
+	SDL_RenderClear(windowRenderer);
+	SDL_SetRenderDrawColor(windowRenderer, 255, 255, 255, 255);
+	SDL_RenderFillRect(windowRenderer, NULL);
+	windowPixelFormat = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
+	SDL_RenderPresent(windowRenderer);
 	if (TTF_Init() < 0) {
 		game->error("Couldn't init TTF lib: %s\n", TTF_GetError());
 		goto err;
@@ -241,18 +288,16 @@ int Wormik_SDL::init(WormikGame_If *game_)
 		game->error("Couldn't open output font: %s\n", TTF_GetError());
 		goto err;
 	}
-	//printf("font asc: %d, desc: %d, lskip: %d\n", TTF_FontAscent(font), TTF_FontDescent(font), TTF_FontLineSkip(font));
 	if (initSurface() < 0) {
 		goto err;
 	}
 	return 0;
 
 err:
-	shutdown(game);
 	return -1;
 }
 
-void Wormik_SDL::shutdown(WormikGame_If *game)
+void SdlWormikGui::closeGui()
 {
 	if (font) {
 		TTF_CloseFont(font);
@@ -260,49 +305,68 @@ void Wormik_SDL::shutdown(WormikGame_If *game)
 	}
 	if (TTF_WasInit())
 		TTF_Quit();
-	if (simg) {
-		SDL_FreeSurface(simg);
-		simg = NULL;
+	if (seasonImage) {
+		SDL_DestroyTexture(seasonImage);
+		seasonImage = NULL;
 	}
 	SDL_ShowCursor(SDL_ENABLE);
-	if (bsimg) {
-		SDL_FreeSurface(bsimg);
-		bsimg = NULL;
+	if (bgSeasonImage) {
+		SDL_DestroyTexture(bgSeasonImage);
+		bgSeasonImage = NULL;
 	}
-	if (win) {
-		SDL_FreeSurface(win);
-		win = NULL;
+	if (textureRenderer) {
+		SDL_DestroyRenderer(textureRenderer);
+		textureRenderer = NULL;
 	}
+	if (windowPixelFormat) {
+		SDL_FreeFormat(windowPixelFormat);
+		windowPixelFormat = NULL;
+	}
+	if (windowRenderer) {
+		SDL_DestroyRenderer(windowRenderer);
+		windowRenderer = NULL;
+	}
+	if (window) {
+		SDL_DestroyWindow(window);
+		window = NULL;
+	}
+}
+
+void SdlWormikGui::shutdown(WormikGame *game)
+{
+	closeGui();
 	SDL_Quit();
 }
 
-int Wormik_SDL::initSImage(SDL_Surface *img)
+int SdlWormikGui::initSeasonImage(SDL_Texture *img)
 {
 	SDL_Rect s, d;
-	if (simg) {
-		SDL_FreeSurface(simg);
+	if (seasonImage) {
+		SDL_DestroyTexture(seasonImage);
 	}
-	if (!(simg = SDL_DisplayFormatAlpha(img))) {
+	if (!(seasonImage = SDL_CreateTexture(windowRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
 		game->error("Failed to convert season image to current video surface: %s\n", SDL_GetError());
 		return -1;
 	}
+	SDL_SetRenderTarget(textureRenderer, seasonImage);
 	s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 	for (d.y = 0; d.y < SIMG_HEIGTH; d.y += GRECT_YSIZE) {
 		for (d.x = 0; d.x < SIMG_WIDTH; d.x += GRECT_XSIZE) {
-			SDL_BlitSurface(simg, &s, bsimg, &d);
+			SDL_RenderCopy(windowRenderer, bgSeasonImage, &s, &d);
 		}
 	}
-	SDL_BlitSurface(simg, NULL, bsimg, NULL);
+	SDL_RenderCopy(textureRenderer, bgSeasonImage, NULL, NULL);
+	SDL_SetRenderTarget(textureRenderer, NULL);
 	return 0;
 }
 
-int Wormik_SDL::newLevel(int season)
+int SdlWormikGui::newLevel(int season)
 {
 	SDL_RWops *sf;
 	int err;
 	char fname[PATH_MAX];
 	char dpath[PATH_MAX];
-	SDL_Surface *img;
+	SDL_Texture *img;
 	SDL_Color c[sizeof(colors)/sizeof(colors[0])];
 	unsigned i;
 
@@ -323,111 +387,64 @@ int Wormik_SDL::newLevel(int season)
 		else
 			break;
 	}
-	if (!(img = IMG_Load_RW(sf, 1))) {
+	if (!(img = IMG_LoadTexture_RW(windowRenderer, sf, 1))) {
 		game->fatal("failed to process image %s: %s\n", fname, SDL_GetError());
 	}
-	if (img->w != SIMG_WIDTH || img->h != SIMG_HEIGTH || img->format->BytesPerPixel != 4) {
-		game->fatal("%s: image has to be %dx%dx32 sized (is %dx%dx%d)\n", fname, SIMG_WIDTH, SIMG_HEIGTH, img->w, img->h, img->format->BytesPerPixel*4);
-		SDL_FreeSurface(img);
+	Uint32 imgFormat; int imgWidth; int imgHeight;
+	if (SDL_QueryTexture(img, &imgFormat, NULL, &imgWidth, &imgHeight) != 0) {
+		game->fatal("failed to query texture data");
 	}
-	SDL_LockSurface(img);
+	SDL_PixelFormat *imgPixelFormat = SDL_AllocFormat(imgFormat);
+	if (imgWidth != SIMG_WIDTH || imgHeight != SIMG_HEIGTH || imgFormat != SDL_PIXELFORMAT_ARGB8888) {
+		game->fatal("%s: image has to be %dx%dx32 sized (is %dx%dx%d)\n", fname, SIMG_WIDTH, SIMG_HEIGTH, imgWidth, imgHeight, imgFormat);
+		SDL_DestroyTexture(img);
+	}
+	//void *imgPixels; int imgPitch;
+	//if (SDL_LockTexture(img, NULL, &imgPixels, &imgPitch) != 0) {
+	//	game->fatal("failed to lock texture: %s\n", SDL_GetError());
+	//}
+	SDL_SetRenderTarget(textureRenderer, img);
+
+	// find basic drawing colors, these have alpha 0 in original image
 #if 1
 	i = 0;
-	for (unsigned y = 0; i < sizeof(c)/sizeof(c[0]) && y < (unsigned)img->h; y++) {
-		for (unsigned x = 0; i < sizeof(c)/sizeof(c[0]) && x < (unsigned)img->w; x++) {
-			Uint8 a;
-			SDL_GetRGBA(*(Uint32 *)((char *)img->pixels+y*img->pitch+x*img->format->BytesPerPixel), img->format, &c[i].r, &c[i].g, &c[i].b, &a);
-			if (a == 0) {
+	SDL_Rect rec = { 0, 0, 1, 1 };
+	for (unsigned y = 0; i < sizeof(c)/sizeof(c[0]) && y < (unsigned)imgHeight; y++) {
+		for (unsigned x = 0; i < sizeof(c)/sizeof(c[0]) && x < (unsigned)imgWidth; x++) {
+			rec.x = x; rec.y = y;
+			Uint32 pixel;
+			if (SDL_RenderReadPixels(textureRenderer, &rec, SDL_PIXELFORMAT_ARGB8888, &pixel, 1) != 0) {
+				game->fatal("cannot read pixel from texture: %s\n", SDL_GetError());
+			}
+			game->error("found pixel %x\n", pixel);
+			if ((pixel&0xff000000) == 0) {
 				//printf("found %dx%d: (%d, %d, %d)\n", y, x, c[i].r, c[i].g, c[i].b);
+				c[i].r = (Uint8)(pixel>>16);
+				c[i].g = (Uint8)(pixel>>8);
+				c[i].b = (Uint8)(pixel>>0);
 				i++;
 			}
 		}
 	}
 	if (i != sizeof(c)/sizeof(c[0])) {
-		game->fatal("%s: Didn't found enough hidden pixels to get font colors\n", fname);
+		game->fatal("%s: Didn't find enough hidden pixels to get font colors: %d\n", fname, (int)i);
 	}
 #else
 	for (i = 0; i < sizeof(c)/sizeof(c[0]); i++) {
 		Uint8 a;
-		SDL_GetRGBA(*(Uint32 *)((char *)img->pixels+5*GRECT_YSIZE*img->pitch+(2*GRECT_XSIZE+i)*img->format->BytesPerPixel), img->format, &c[i].r, &c[i].g, &c[i].b, &a);
+		SDL_GetRGBA(*(Uint32 *)((char *)imgPixels+5*GRECT_YSIZE*imgPitch+(2*GRECT_XSIZE+i)*SDL_BYTESPERPIXEL(imgFormat)), imgFormat, &c[i].r, &c[i].g, &c[i].b, &a);
 		printf("found %dx%d: (%d, %d, %d)\n", y, x, c[i].r, c[i].g, c[i].b);
 	}
 #endif
 	for (i = 0; i < sizeof(c)/sizeof(c[0]); i++) {
-		colors[i] = SDL_MapRGB(win->format, c[i].r, c[i].g, c[i].b);
+		colors[i] = SDL_MapRGB(windowPixelFormat, c[i].r, c[i].g, c[i].b);
 	}
-#ifdef TESTOPTS
-	do {
-		// only testing code, so it's a little more copy-pasted ;)
-		char conv[32];
-		char *sb, *db;
-		if ((unsigned)game->getConfigStr("genimage", conv, sizeof(conv)) >= sizeof(conv))
-			break;
-		if (strchr(conv, 'r')) {
-			sb = (char *)img->pixels+2*GRECT_YSIZE*img->pitch+0*img->format->BytesPerPixel;
-			db = (char *)img->pixels+2*GRECT_YSIZE*img->pitch+2*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 2*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 2*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(2*GRECT_YSIZE-y-1)*img->pitch+(2*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-		if (strchr(conv, 'R')) {
-			sb = (char *)img->pixels+2*GRECT_YSIZE*img->pitch+0*img->format->BytesPerPixel;
-			db = (char *)img->pixels+2*GRECT_YSIZE*img->pitch+2*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 2*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 2*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(y)*img->pitch+(2*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-		if (strchr(conv, 'h')) {
-			sb = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+0*GRECT_XSIZE*img->format->BytesPerPixel;
-			db = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+2*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 1*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 1*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(1*GRECT_YSIZE-y-1)*img->pitch+(1*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-		if (strchr(conv, 'H')) {
-			sb = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+0*GRECT_XSIZE*img->format->BytesPerPixel;
-			db = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+2*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 1*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 1*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(y)*img->pitch+(1*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-		if (strchr(conv, 'v')) {
-			sb = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+1*GRECT_XSIZE*img->format->BytesPerPixel;
-			db = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+3*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 1*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 1*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(1*GRECT_YSIZE-y-1)*img->pitch+(1*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-		if (strchr(conv, 'V')) {
-			sb = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+1*GRECT_XSIZE*img->format->BytesPerPixel;
-			db = (char *)img->pixels+4*GRECT_YSIZE*img->pitch+3*GRECT_XSIZE*img->format->BytesPerPixel;
-			for (int y = 0; y < 1*GRECT_YSIZE; y++) {
-				for (int x = 0; x < 1*GRECT_XSIZE; x++) {
-					*(Uint32 *)(db+(y)*img->pitch+(1*GRECT_XSIZE-x-1)*img->format->BytesPerPixel) =
-						*(Uint32 *)(sb+(y)*img->pitch+(x)*img->format->BytesPerPixel);
-				}
-			}
-		}
-	} while (0);
-#endif
-	SDL_UnlockSurface(img);
-	err = initSImage(img);
-	SDL_FreeSurface(img);
+
+	//SDL_UnlockTexture(img);
+	SDL_SetRenderTarget(textureRenderer, NULL);
+	err = initSeasonImage(img);
+	SDL_FreeFormat(imgPixelFormat);
+	SDL_DestroyTexture(img);
 	if (err < 0) {
 		game->fatal();
 	}
@@ -435,7 +452,7 @@ int Wormik_SDL::newLevel(int season)
 	return season;
 }
 
-void Wormik_SDL::drawPoint(void *gc, unsigned x, unsigned y, unsigned short cont)
+void SdlWormikGui::drawPoint(void *gc, unsigned x, unsigned y, unsigned short cont)
 {
 	SDL_Rect s, d;
 	unsigned sx, sy;
@@ -443,10 +460,10 @@ void Wormik_SDL::drawPoint(void *gc, unsigned x, unsigned y, unsigned short cont
 	s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 	findImagePos(cont, &sx, &sy);
 	s.x = sx; s.y = sy;
-	SDL_BlitSurface(bsimg, &s, win, &d);
+	SDL_RenderCopy(windowRenderer, bgSeasonImage, &s, &d);
 }
 
-int Wormik_SDL::drawNewdef(void *gc, unsigned x, unsigned y, unsigned short cont, double timeout, double total)
+int SdlWormikGui::drawNewdef(void *gc, unsigned x, unsigned y, unsigned short cont, double timeout, double total)
 {
 	SDL_Rect s, d;
 	unsigned sx, sy;
@@ -456,23 +473,23 @@ int Wormik_SDL::drawNewdef(void *gc, unsigned x, unsigned y, unsigned short cont
 	findImagePos(cont, &sx, &sy);
 	if (alpha <= 0) {
 		s.x = sx; s.y = sy;
-		SDL_BlitSurface(bsimg, &s, win, &d);
+		SDL_RenderCopy(windowRenderer, bgSeasonImage, &s, &d);
 		return 0;
 	}
 	else {
 		if (alpha >= 256) // possible because of newdef latency
 			alpha = 255;
 		s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE;
-		SDL_BlitSurface(simg, &s, win, &d);
+		SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 		s.x = sx; s.y = sy;
-		SDL_SetAlpha(bsimg, SDL_SRCALPHA, 255-alpha);
-		SDL_BlitSurface(bsimg, &s, win, &d);
-		SDL_SetAlpha(bsimg, 0, 255);
+		SDL_SetTextureAlphaMod(bgSeasonImage, 255-alpha);
+		SDL_RenderCopy(windowRenderer, bgSeasonImage, &s, &d);
+		SDL_SetTextureAlphaMod(bgSeasonImage, 255);
 		return 1;
 	}
 }
 
-void Wormik_SDL::invalOut(int len, unsigned (*points)[2])
+void SdlWormikGui::invalOut(int len, unsigned (*points)[2])
 {
 	if (len == 0) {
 		return;
@@ -490,19 +507,21 @@ void Wormik_SDL::invalOut(int len, unsigned (*points)[2])
 	redraw = true;
 }
 
-void Wormik_SDL::drawText(int x, int y, Uint32 color, const char *text)
+void SdlWormikGui::drawText(int x, int y, Uint32 color, const char *text)
 {
 	SDL_Color clr;
 	SDL_Surface *fs;
 	SDL_Rect d;
-	SDL_GetRGB(color, win->format, &clr.r, &clr.g, &clr.b);
+	SDL_GetRGB(color, windowPixelFormat, &clr.r, &clr.g, &clr.b);
 	fs = TTF_RenderText_Blended(font, text, clr);
+	SDL_Texture *texture = SDL_CreateTextureFromSurface(windowRenderer, fs);
 	d.x = (x >= 0)?x:(-x-fs->w); d.y = (y >= 0)?y:(-y-fs->h);
-	SDL_BlitSurface(fs, NULL, win, &d);
+	SDL_RenderCopy(windowRenderer, texture, NULL, &d);
+	SDL_DestroyTexture(texture);
 	SDL_FreeSurface(fs);
 }
 
-void Wormik_SDL::drawLTextf(int x, int y, Uint32 color, const char *fmt, ...)
+void SdlWormikGui::drawLTextf(int x, int y, Uint32 color, const char *fmt, ...)
 {
 	SDL_Color clr;
 	va_list va;
@@ -512,7 +531,7 @@ void Wormik_SDL::drawLTextf(int x, int y, Uint32 color, const char *fmt, ...)
 	SDL_Surface *fs[256];
 	char *p;
 	int mw, th;
-	SDL_GetRGB(color, win->format, &clr.r, &clr.g, &clr.b);
+	SDL_GetRGB(color, windowPixelFormat, &clr.r, &clr.g, &clr.b);
 	va_start(va, fmt);
 	if (vsnprintf(buf, sizeof(buf), fmt, va) >= (int)sizeof(buf))
 		buf[sizeof(buf)-1] = '\0';
@@ -533,18 +552,20 @@ void Wormik_SDL::drawLTextf(int x, int y, Uint32 color, const char *fmt, ...)
 	fs[nrows] = NULL;
 	for (nrows = 0; fs[nrows]; nrows++) {
 		d.x = (x >= 0)?x:(-x-fs[nrows]->w);
-		SDL_BlitSurface(fs[nrows], NULL, win, &d);
+		SDL_Texture *texture = SDL_CreateTextureFromSurface(windowRenderer, fs[nrows]);
+		SDL_RenderCopy(windowRenderer, texture, NULL, &d);
 		d.y += fs[nrows]->h;
+		SDL_DestroyTexture(texture);
 		SDL_FreeSurface(fs[nrows]);
 	}
 }
 
-unsigned Wormik_SDL::drawBase(void)
+unsigned SdlWormikGui::drawBase(void)
 {
 	unsigned ret = 0;
 	unsigned x, y;
 	SDL_Rect s, d;
-	InvalList *ic = &invlist[ilcur];
+	InvalList *ic = &invlist[currentInvList];
 
 	if ((ic->flags&INVO_BOARD) != 0) {
 		s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
@@ -563,31 +584,32 @@ unsigned Wormik_SDL::drawBase(void)
 	}
 
 	if ((ic->flags&INVO_MENU) != 0) {
-		findImagePos(WormikGame_If::GR_WALL, &x, &y);
+		findImagePos(WormikGame::GR_WALL, &x, &y);
 		s.x = x; s.y = y; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 		d.w = GRECT_XSIZE; d.h = GRECT_YSIZE;
+		SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[CLR_MENUBG]>>16), (Uint8)(colors[CLR_MENUBG]>>8), (Uint8)(colors[CLR_MENUBG]>>0), (Uint8)(colors[CLR_MENUBG]>>24));
 		for (y = 1; y < 29; y++) {
 			d.x = 480+9*GRECT_XSIZE; d.y = y*GRECT_YSIZE;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 		}
 		for (x = 0; x < 10; x++) {
 			d.x = 480+x*GRECT_XSIZE;
 			d.y = 0;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 			d.y = 6*GRECT_YSIZE;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 			d.y = 12*GRECT_YSIZE;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 			d.y = 18*GRECT_YSIZE;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 			d.y = 29*GRECT_YSIZE;
-			SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderFillRect(windowRenderer, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 		}
 	}
 
@@ -598,7 +620,8 @@ unsigned Wormik_SDL::drawBase(void)
 			int record; time_t rectime; int isnow;
 			isnow = game->getRecord(&record, &rectime);
 			t = *localtime(&rectime); strftime(tc, sizeof(tc), "%Y-%m-%d %H:%M", &t);
-			d.y = 16; SDL_FillRect(win, &d, colors[CLR_MENUBG]);
+			SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[CLR_MENUBG]>>16), (Uint8)(colors[CLR_MENUBG]>>8), (Uint8)(colors[CLR_MENUBG]>>0), (Uint8)(colors[CLR_MENUBG]>>24));
+			d.y = 16; SDL_RenderFillRect(windowRenderer, &d);
 			drawLTextf(-622, 28, colors[isnow?CLR_FONTEXC:CLR_FONTMENU], "Record: %d\n%s\n", record, (rectime == 0)?" ":tc);
 		}
 		if ((ic->flags&(INVO_SCORE|INVO_GSTATE)) != 0) {
@@ -606,13 +629,15 @@ unsigned Wormik_SDL::drawBase(void)
 			int level, season;
 			game->getState(&level, &season);
 			exit = game->getScore(&score, &total);
-			d.y = 112; SDL_FillRect(win, &d, colors[0]);
+			SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[0]>>16), (Uint8)(colors[0]>>8), (Uint8)(colors[0]>>0), (Uint8)(colors[0]>>24));
+			d.y = 112; SDL_RenderFillRect(windowRenderer, &d);
 			drawLTextf(-622, 124, colors[(score >= exit)?CLR_FONTEXC:CLR_FONTMENU], "Score: %d\nLevel: %d/%d\n", total, level, (total-score)+exit);
 		}
 		if ((ic->flags&(INVO_HEALTH|INVO_LENGTH)) != 0) {
 			int health, length;
 			game->getSnakeInfo(&health, &length);
-			d.y = 208; SDL_FillRect(win, &d, colors[0]);
+			SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[0]>>16), (Uint8)(colors[0]>>8), (Uint8)(colors[0]>>0), (Uint8)(colors[0]>>24));
+			d.y = 208; SDL_RenderFillRect(windowRenderer, &d);
 			drawLTextf(-622, 220, colors[(health <= 1)?CLR_FONTEXC:CLR_FONTMENU], "Health: %d\nLength: %d\n", health, length);
 		}
 	}
@@ -620,17 +645,18 @@ unsigned Wormik_SDL::drawBase(void)
 	if ((ic->flags&INVO_DESC) != 0) {
 		s.w = GRECT_XSIZE; s.h = GRECT_YSIZE; d.x = 496;
 		d.x = 480; d.y = 19*GRECT_YSIZE; d.w = 9*GRECT_XSIZE; d.h = 10*GRECT_YSIZE;
-		SDL_FillRect(win, &d, colors[CLR_MENUBG]);
-		findImagePos(WormikGame_If::GR_POSIT, &x, &y); s.x = x; s.y = y; d.y = 312; SDL_BlitSurface(simg, &s, win, &d); drawText(-608, 304, colors[CLR_FONTMENU], "S+2");
-		findImagePos(WormikGame_If::GR_POSIT2, &x, &y); s.x = x; s.y = y; d.y = 344; SDL_BlitSurface(simg, &s, win, &d); drawText(-608, 336, colors[CLR_FONTMENU], "S+5");
-		findImagePos(WormikGame_If::GR_NEGAT, &x, &y); s.x = x; s.y = y; d.y = 376; SDL_BlitSurface(simg, &s, win, &d); drawText(-608, 368, colors[CLR_FONTMENU], "H-1");
-		findImagePos(WormikGame_If::GR_DEATH, &x, &y); s.x = x; s.y = y; d.y = 408; SDL_BlitSurface(simg, &s, win, &d); drawText(-608, 400, colors[CLR_FONTMENU], "Death");
-		findImagePos(WormikGame_If::GR_EXIT, &x, &y); s.x = x; s.y = y; d.y = 440; SDL_BlitSurface(simg, &s, win, &d); drawText(-608, 432, colors[CLR_FONTMENU], "Exit");
+		SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[CLR_MENUBG]>>16), (Uint8)(colors[CLR_MENUBG]>>8), (Uint8)(colors[CLR_MENUBG]>>0), (Uint8)(colors[CLR_MENUBG]>>24));
+		SDL_RenderFillRect(windowRenderer, &d);
+		findImagePos(WormikGame::GR_POSIT, &x, &y); s.x = x; s.y = y; d.y = 312; SDL_RenderCopy(windowRenderer, seasonImage, &s, &d); drawText(-608, 304, colors[CLR_FONTMENU], "S+2");
+		findImagePos(WormikGame::GR_POSIT2, &x, &y); s.x = x; s.y = y; d.y = 344; SDL_RenderCopy(windowRenderer, seasonImage, &s, &d); drawText(-608, 336, colors[CLR_FONTMENU], "S+5");
+		findImagePos(WormikGame::GR_NEGAT, &x, &y); s.x = x; s.y = y; d.y = 376; SDL_RenderCopy(windowRenderer, seasonImage, &s, &d); drawText(-608, 368, colors[CLR_FONTMENU], "H-1");
+		findImagePos(WormikGame::GR_DEATH, &x, &y); s.x = x; s.y = y; d.y = 408; SDL_RenderCopy(windowRenderer, seasonImage, &s, &d); drawText(-608, 400, colors[CLR_FONTMENU], "Death");
+		findImagePos(WormikGame::GR_EXIT, &x, &y); s.x = x; s.y = y; d.y = 440; SDL_RenderCopy(windowRenderer, seasonImage, &s, &d); drawText(-608, 432, colors[CLR_FONTMENU], "Exit");
 	}
 	return ret;
 }
 
-unsigned Wormik_SDL::drawAnnounce(unsigned n, const char *text[])
+unsigned SdlWormikGui::drawAnnounce(unsigned n, const char *text[])
 {
 	SDL_Color clr;
 	unsigned i;
@@ -639,7 +665,7 @@ unsigned Wormik_SDL::drawAnnounce(unsigned n, const char *text[])
 	int w, h;
 	int ey, ex;
 
-	SDL_GetRGB(colors[CLR_FONTANC], win->format, &clr.r, &clr.g, &clr.b);
+	SDL_GetRGB(colors[CLR_FONTANC], windowPixelFormat, &clr.r, &clr.g, &clr.b);
 
 	w = h = 0;
 	for (i = 0; i < n; i++) {
@@ -657,27 +683,32 @@ unsigned Wormik_SDL::drawAnnounce(unsigned n, const char *text[])
 		for (d.x = (480-w)/2, ex = d.x+w; d.x < ex; d.x += GRECT_XSIZE) {
 			if (d.x+s.w > ex)
 				s.w = ex-d.x;
-			SDL_BlitSurface(simg, &s, win, &d);
+			SDL_RenderCopy(windowRenderer, seasonImage, &s, &d);
 		}
 	}
 	d.y = (480-h+16)/2;
 	for (i = 0; i < n; i++) {
 		d.x = (480-fs[i]->w)/2;
-		SDL_BlitSurface(fs[i], NULL, win, &d);
+		SDL_Texture *texture = SDL_CreateTextureFromSurface(windowRenderer, fs[i]);
+		SDL_RenderCopy(windowRenderer, texture, NULL, &d);
 		d.y += fs[i]->h;
+		SDL_DestroyTexture(texture);
 		SDL_FreeSurface(fs[i]);
 	}
 	return 0;
 }
 
-void Wormik_SDL::drawFinish(unsigned rflags)
+void SdlWormikGui::drawFinish(unsigned rflags)
 {
-	SDL_Flip(win);
-	invlist[ilcur].reset(rflags);
-	if ((win->flags&SDL_DOUBLEBUF) != 0) {
-		ilcur ^= 1;
-		invlist[ilcur].flags |= rflags;
+	game->error("SDL_RenderPresent\n");
+	SDL_RenderPresent(windowRenderer);
+	invlist[currentInvList].reset(rflags);
+#if 0
+	if ((SDL_GetWindowFlags(window)&SDL_DOUBLEBUF) != 0) {
+		currentInvList ^= 1;
+		invlist[currentInvList].flags |= rflags;
 	}
+#endif
 	redraw = false;
 }
 
@@ -686,7 +717,7 @@ static Uint32 push_game_timeout(Uint32 inter, void *par)
 	if (*(volatile int *)par == 0) {
 		SDL_Event ev;
 		ev.type = SDL_USEREVENT;
-		ev.user.code = Wormik_SDL::UEV_GAMETOUT;
+		ev.user.code = SdlWormikGui::UEV_GAMETOUT;
 		SDL_PushEvent(&ev);
 		*(volatile int *)par = 1;
 	}
@@ -698,14 +729,14 @@ static Uint32 push_draw_timeout(Uint32 inter, void *par)
 	if (*(volatile int *)par == 0) {
 		SDL_Event ev;
 		ev.type = SDL_USEREVENT;
-		ev.user.code = Wormik_SDL::UEV_DRAWTOUT;
+		ev.user.code = SdlWormikGui::UEV_DRAWTOUT;
 		SDL_PushEvent(&ev);
 		*(volatile int *)par = 1;
 	}
 	return inter;
 }
 
-SDL_TimerID Wormik_SDL::createDrawTimer(volatile int *timed)
+SDL_TimerID SdlWormikGui::createDrawTimer(volatile int *timed)
 {
 	SDL_TimerID t;
 	if (!(t = SDL_AddTimer(1000/16, &push_draw_timeout, (void *)timed)))
@@ -725,79 +756,61 @@ enum {
 	STDE_SHOWMAX = 5,
 };
 
-int Wormik_SDL::stdEvent(SDL_Event *ev)
+int SdlWormikGui::stdEvent(SDL_Event *ev)
 {
 	switch (ev->type) {
 	case SDL_QUIT:
 		return STDE_QUIT;
+
 	case SDL_KEYDOWN:
 		switch (ev->key.keysym.sym) {
 		case SDLK_ESCAPE:
 		case SDLK_q:
 			return 1;
+
 		case SDLK_f:
 			{
-				SDL_Color cs[sizeof(colors)/sizeof(colors[0])];
-				SDL_Surface *nimg = simg;
-				int oflags = win->flags;
-				for (unsigned i = 0; i < sizeof(cs)/sizeof(cs[0]); i++)
-					SDL_GetRGB(colors[i], win->format, &cs[0].r, &cs[1].g, &cs[2].b);
-				SDL_FreeSurface(win);
-				simg = NULL;
-				if (!(win = SDL_SetVideoMode(640, 480, 0, oflags^SDL_FULLSCREEN))) {
+				closeGui();
+				game->setConfig("fullscreen", game->getConfigInt("fullscreen", 0) == 0);
+				if (initGui() < 0) {
 					game->error("Failed to set video mode, trying to set the old one: %s\n", SDL_GetError());
-					goto tryold;
-				}
-				if (initSurface() < 0) {
-					goto tryold;
-				}
-				if (initSImage(nimg) < 0) {
-					goto tryold;
-				}
-				SDL_FreeSurface(nimg);
-				if (0) {
-					int err;
-tryold:
-					if (!(win = SDL_SetVideoMode(640, 480, 0, oflags))) {
-						game->fatal("Failed to set old video mode: %s\n", SDL_GetError());
-					}
-					if (initSurface() < 0) {
-						game->fatal();
-					}
-					err = initSImage(nimg);
-					SDL_FreeSurface(nimg);
-					if (err < 0) {
-						game->fatal();
+					game->setConfig("fullscreen", game->getConfigInt("fullscreen", 0) == 0);
+					if (initGui() < 0) {
+						game->fatal("Failed to set video mode: %s\n", SDL_GetError());
 					}
 				}
-				game->setConfig("fullscreen", (win->flags&SDL_FULLSCREEN) != 0);
 			}
 			invalOut(-INVO_MFULL, NULL);
 			return STDE_REDRAW;
+
 		case SDLK_h:
 		case SDLK_HELP:
 		case SDLK_F1:
 			return STDE_SHOWHELP;
+
 		case SDLK_a:
 			return STDE_SHOWABOUT;
+
 		default:
 			break;
 		}
 		break;
-	case SDL_VIDEOEXPOSE:
+	case SDL_WINDOWEVENT:
 		invlist[0].reset(INVO_MFULL); invlist[1].reset(INVO_MFULL);
 		return STDE_REDRAW;
+
 	case SDL_USEREVENT:
 		switch (ev->user.code) {
 		case UEV_DRAWTOUT:
 			return STDE_DRAWTIMER;
+
 		}
 		break;
 	}
 	return STDE_UNKNOWN;
 }
 
-int Wormik_SDL::showPopup(int stdrm)
+int SdlWormikGui::showPopup(int stdrm)
 {
 	int ret = -1;
 	redraw = true;
@@ -870,7 +883,7 @@ int Wormik_SDL::showPopup(int stdrm)
 	return ret;
 }
 
-int Wormik_SDL::announce(int anc)
+int SdlWormikGui::announce(int anc)
 {
 	int ret = -1;
 
@@ -934,12 +947,12 @@ reswitch:
 	return ret;
 }
 
-int Wormik_SDL::waitNext(double interval)
+int SdlWormikGui::waitNext(double interval)
 {
 	volatile int gametimed = 0;
-	SDL_TimerID gametimer = NULL;
+	SDL_TimerID gametimer = 0;
 	volatile int drawtimed = 0;
-	SDL_TimerID drawtimer = NULL;
+	SDL_TimerID drawtimer = 0;
 	double time = getdtime();
 	int ret = -1;
 	int pausing;
@@ -989,7 +1002,7 @@ reswitch:
 			ret = 1;
 			break;
 		case STDE_DRAWTIMER:
-			if (ret < 0 && (invlist[ilcur].flags&INVO_DYNFLAGS) != 0)
+			if (ret < 0 && (invlist[currentInvList].flags&INVO_DYNFLAGS) != 0)
 				redraw = true;
 			drawtimed = 0;
 			break;
@@ -998,9 +1011,9 @@ reswitch:
 			case SDL_USEREVENT:
 				switch (ev.user.code) {
 				case UEV_GAMETOUT:
-					if (gametimer != NULL) {
+					if (gametimer != 0) {
 						SDL_RemoveTimer(gametimer);
-						gametimer = NULL;
+						gametimer = 0;
 					}
 					gametimed = 0;
 					if (!pausing && ret < 0) {
@@ -1020,16 +1033,16 @@ reswitch:
 						ret = -1;
 						break;
 					case SDLK_RIGHT:
-						dir = WormikGame_If::SDIR_RIGHT;
+						dir = WormikGame::SDIR_RIGHT;
 						break;
 					case SDLK_UP:
-						dir = WormikGame_If::SDIR_UP;
+						dir = WormikGame::SDIR_UP;
 						break;
 					case SDLK_LEFT:
-						dir = WormikGame_If::SDIR_LEFT;
+						dir = WormikGame::SDIR_LEFT;
 						break;
 					case SDLK_DOWN:
-						dir = WormikGame_If::SDIR_DOWN;
+						dir = WormikGame::SDIR_DOWN;
 						break;
 					default:
 						break;
@@ -1047,20 +1060,20 @@ reswitch:
 				break;
 			}
 		}
-		if ((invlist[ilcur].flags&INVO_DYNFLAGS) == 0) {
-			if (drawtimer != NULL) {
+		if ((invlist[currentInvList].flags&INVO_DYNFLAGS) == 0) {
+			if (drawtimer != 0) {
 				SDL_RemoveTimer(drawtimer);
-				drawtimer = NULL;
+				drawtimer = 0;
 			}
 		}
 		if (ret >= 0 || pausing != 0) {
-			if (gametimer != NULL) {
+			if (gametimer != 0) {
 				SDL_RemoveTimer(gametimer);
-				gametimer = NULL;
+				gametimer = 0;
 			}
-			if (drawtimer != NULL) {
+			if (drawtimer != 0) {
 				SDL_RemoveTimer(drawtimer);
-				drawtimer = NULL;
+				drawtimer = 0;
 			}
 			if (!gametimed && !drawtimed) {
 				if (pausing > 0) {
@@ -1078,7 +1091,10 @@ reswitch:
 	return ret;
 }
 
-WormikGui_If *create_Wormik_SDL(void)
+WormikGui *create_WormikGui(void)
 {
-	return new Wormik_SDL();
+	return new SdlWormikGui();
 }
+
+
+} } } };
