@@ -5,12 +5,15 @@
  * Game interface
  */
 
-#ifndef WormikGame_If_hxx__
-# define WormikGame_If_hxx__
+#ifndef WormikGame_hxx__
+# define WormikGame_hxx__
 
-class WormikGui_If;
+namespace cz { namespace znj { namespace sw { namespace wormik {
 
-class WormikGame_If
+
+class WormikGui;
+
+class WormikGame
 {
 public:
 	typedef unsigned char board_def;
@@ -70,11 +73,11 @@ public:
 	static board_def		GR_SNAKE(board_def type, int in, int out);
 
 public:
-	virtual				~WormikGame_If();
+	virtual				~WormikGame() {}
 
 public:
 	/* main game functions */
-	virtual void			setGui(WormikGui_If *gui) = 0;
+	virtual void			setGui(WormikGui *gui) = 0;
 	virtual void			run(void) = 0;
 
 	/* config functions */
@@ -115,34 +118,37 @@ public:
 	virtual int			outNewdefs(void *gc) = 0;
 };
 
-inline WormikGame_If::board_def WormikGame_If::GR_SNAKE(board_def type, int in, int out)
+inline WormikGame::board_def WormikGame::GR_SNAKE(board_def type, int in, int out)
 {
 	return (GR_BSNAKE+type)|(in<<4)|(out<<6);
 }
 
-inline WormikGame_If::board_def WormikGame_If::GR_GET_BTYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_BTYPE(board_def n)
 {
 	return ((n&15) >= GR_BSNAKE)?GR_BSNAKE:n;
 }
 
-inline WormikGame_If::board_def WormikGame_If::GR_GET_FTYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_FTYPE(board_def n)
 {
 	return n&15;
 }
 
-inline WormikGame_If::board_def WormikGame_If::GR_GET_STYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_STYPE(board_def n)
 {
 	return n&3;
 }
 
-inline WormikGame_If::board_def WormikGame_If::GR_GET_IN(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_IN(board_def n)
 {
 	return (n>>4)&3;
 }
 
-inline WormikGame_If::board_def WormikGame_If::GR_GET_OUT(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_OUT(board_def n)
 {
 	return (n>>6)&3;
 }
+
+
+} } } };
 
 #endif

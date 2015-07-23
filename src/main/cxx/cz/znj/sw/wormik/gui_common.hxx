@@ -8,8 +8,9 @@
 #ifndef gui_common_hxx__
 # define gui_common_hxx__
 
-namespace gui4x6x16
+namespace cz { namespace znj { namespace sw { namespace wormik { namespace gui4x6x16
 {
+
 
 /* canvas sizes */
 enum {
@@ -37,7 +38,7 @@ extern const int head_image_pos[4][2];
 extern const int tail_image_pos[4][2];
 
 /* returns image positions for board-type */
-void findImagePos(WormikGame_If::board_def t, unsigned *x, unsigned *y);
+void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y);
 
 class InvalList
 {
@@ -57,6 +58,7 @@ inline void InvalList::reset(unsigned flags_)
 	ilength = 0;
 }
 
-}; /* namespace gui4x6x16 */
+
+} } } } }; /* namespace cz::znj::sw::wormik::gui4x6x16 */
 
 #endif
