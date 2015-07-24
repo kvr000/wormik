@@ -1,0 +1,15 @@
+-- EDITING IMAGES
+
+The images are regular ARGB png files. The alpha part is applied during the
+rendering.
+
+Note that first 4 pixels from each image with alpha equal to 0 is used as a
+drawing colors for GUI. So there is some magic for editing: you have to colorize
+the pixel and then wipe the pixel by setting alpha to 0. The colors are:
+		CLR_MENU_BG		= 0,		/**< menu background */
+		CLR_MENU_FONT		= 1,		/**< menu font color */
+		CLR_EXCEPTION_FONT	= 2,		/**< exceptions font color */
+		CLR_ANNOUNCEMENT_FONT	= 3,		/**< announcement font color */
+
+
+# vim: set tw=80:

@@ -269,14 +269,7 @@ int SdlWormikGui::initGui()
 		game->error("Couldn't create window: %s\n", SDL_GetError());
 		goto err;
 	}
-	if (true) {
-		textureRenderer = windowRenderer;
-	}
-	else if ((textureRenderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_TARGETTEXTURE)) == NULL) {
-		game->error("Couldn't create texture renderer: %s\n", SDL_GetError());
-		textureRenderer = windowRenderer;
-		//goto err;
-	}
+	textureRenderer = windowRenderer;
 	windowPixelFormat = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
 	if (TTF_Init() < 0) {
 		game->error("Couldn't init TTF lib: %s\n", TTF_GetError());
@@ -309,8 +302,9 @@ void SdlWormikGui::closeGui()
 		TTF_CloseFont(font);
 		font = NULL;
 	}
-	if (TTF_WasInit())
+	if (TTF_WasInit()) {
 		TTF_Quit();
+	}
 	if (seasonImage) {
 		SDL_DestroyTexture(seasonImage);
 		seasonImage = NULL;

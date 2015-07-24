@@ -161,7 +161,7 @@ void WormikGameImpl::setGui(WormikGui *gui_)
 	gui = gui_;
 }
 
-/* *config*: stupid unsafe implementation, but written really quickly ;) */
+/* *config*: stupid simple implementation, but written really quickly ;) */
 FILE *openConfig(int mode)
 {
 	int fd;
@@ -171,7 +171,7 @@ FILE *openConfig(int mode)
 		home = ".";
 	if (snprintf(buf, sizeof(buf), "%s/.config", home) < (int)sizeof(buf))
 		mkdir(buf, 0777);
-	if (snprintf(buf, sizeof(buf), "%s/.config/.wormikrc", home) >= (int)sizeof(buf))
+	if (snprintf(buf, sizeof(buf), "%s/.config/wormikrc", home) >= (int)sizeof(buf))
 		return NULL;
 	if ((fd = open(buf, mode|O_CREAT, 0666)) < 0)
 		return NULL;
