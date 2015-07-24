@@ -1,14 +1,18 @@
+PREFIX ?= /usr/
+
+VERSION=2.0
+
 CC=gcc
 CXX=g++
 
 #ADV=-DTESTOPTS
 
 LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
-CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Isrc/main/cxx/ -Wall -O0 $(ACFLAGS) -fmessage-length=0 -g
+CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Isrc/main/cxx/ -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g
-RESOURCES=target/wormik_0.png target/wormik_1.png target/wormik_2.png target/wormik_3.png
+RESOURCES=target/wormik_0.png target/wormik_1.png target/wormik_2.png target/wormik_3.png target/README target/LICENSE
 TARGET=target/wormik target/wormik_0.png
 
 SOURCES= \
@@ -36,14 +40,18 @@ tags: no_tags
 	ctags -R
 
 tar:
-	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/*.cxx $$b/*.h $$b/port* $$b/Makefile $$b/PORTS $$b/README $$b/wormik_?.png | gzip -9 >$$b/wormik.tar.gz
+	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/src/ $$b/Makefile $$b/LICENSE $$b/PORTS $$b/README | gzip -9 >$$b/target/wormik-$(VERSION).tar.gz
 
 btar:
-	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/{README,wormik,wormik_?.png} | gzip -9 >$$b/wormik-bin.tar.gz
+	cd target/ && tar fcv - README wormik wormik_?.png | gzip -9 > wormik-$(VERSION)-`uname -s`-`uname -i`.tar.gz
+
+install:
+	cd target/ && for f in wormik_?.png; do mkdir -p $(PREFIX)/share/wormik && cp $$f $(PREFIX)/share/wormik/ || break; done
+	cd target/ && for f in wormik; do cp $$f $(PREFIX)/bin/ || break; done
 
 target/wormik: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
-	#echo $(CFLAGS) | grep -- -O0 >/dev/null || strip $@
+	echo "xyz $(CFLAGS)" | grep -- -O0 >/dev/null || strip $@
 
 target/object/cz/znj/sw/wormik/main.o: src/main/cxx/cz/znj/sw/wormik/main.cxx
 	[ -d `dirname $@` ] || mkdir -p `dirname $@`
@@ -65,6 +73,10 @@ target/wormik_1.png: src/main/resources/wormik_1.png
 target/wormik_2.png: src/main/resources/wormik_2.png
 	cp -a $< $@
 target/wormik_3.png: src/main/resources/wormik_3.png
+	cp -a $< $@
+target/README: README
+	cp -a $< $@
+target/LICENSE: LICENSE
 	cp -a $< $@
 
 depends:
