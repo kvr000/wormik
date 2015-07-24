@@ -265,8 +265,10 @@ void WormikGameImpl::changeDirection(int dir_)
 
 int WormikGameImpl::getState(int *level, int *season)
 {
-	*level = state_level;
-	*season = state_season;
+	if (level != NULL)
+		*level = state_level;
+	if (season != NULL)
+		*season = state_season;
 	return state_game;
 }
 

@@ -64,7 +64,7 @@ protected:
 
 	SDL_Renderer *			textureRenderer;	/**< generic texture renderer */
 
-	SDL_PixelFormat *		argbPixelFormat;	/**< ARGB8888 pixel format */
+	Uint32				alphaPixelFormat;	/**< preferred alpha pixel format */
 
 	SDL_Texture *			seasonImage;		/**< season image */
 	SDL_Texture *			bgSeasonImage;		/**< season image (without alpha, with drawn background) */
@@ -104,6 +104,7 @@ public:
 protected:
 	int				initWindow();
 	int				initSeasonImage(SDL_Texture *img);
+	int				initLevelImage(int season);
 
 	int				initGui();
 	void				closeGui();
@@ -155,7 +156,7 @@ int SdlWormikGui::initWindow()
 	SDL_SetWindowTitle(window, "Wormik");
 	SDL_ShowCursor(SDL_DISABLE);
 
-	if (!(bgSeasonImage = SDL_CreateTexture(windowRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
+	if (!(bgSeasonImage = SDL_CreateTexture(windowRenderer, alphaPixelFormat, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
 		game->error("couldn't create bgSeasonImage texture: %s\n", SDL_GetError());
 		return -1;
 	}
@@ -264,11 +265,23 @@ int SdlWormikGui::initGui()
 	char buf[PATH_MAX];
 	SDL_RWops *ffo = NULL;
 
-	argbPixelFormat = SDL_AllocFormat(SDL_PIXELFORMAT_ARGB8888);
-	if (SDL_CreateWindowAndRenderer(640, 480, (game->getConfigInt("fullscreen", 1)?SDL_WINDOW_FULLSCREEN:0), &window, &windowRenderer) != 0) {
+	if ((window = SDL_CreateWindow("Wormik", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, (game->getConfigInt("fullscreen", 1)?SDL_WINDOW_FULLSCREEN:0))) == NULL) {
 		game->error("Couldn't create window: %s\n", SDL_GetError());
 		goto err;
 	}
+	if ((windowRenderer = SDL_CreateRenderer(window, -1, 0)) == NULL) {
+		game->error("Couldn't create window: %s\n", SDL_GetError());
+		goto err;
+	}
+	alphaPixelFormat = SDL_PIXELFORMAT_ARGB8888;
+	SDL_RendererInfo rendererInfo;
+	SDL_GetRendererInfo(windowRenderer, &rendererInfo);
+	for (size_t i = 0; i < rendererInfo.num_texture_formats; ++i) {
+		if (SDL_ISPIXELFORMAT_ALPHA(rendererInfo.texture_formats[i])) {
+			alphaPixelFormat = rendererInfo.texture_formats[i];
+		}
+	}
+
 	textureRenderer = windowRenderer;
 	windowPixelFormat = SDL_AllocFormat(SDL_GetWindowPixelFormat(window));
 	if (TTF_Init() < 0) {
@@ -349,8 +362,8 @@ int SdlWormikGui::initSeasonImage(SDL_Texture *img)
 		seasonImage = img;
 	}
 	else {
-		if (!(seasonImage = SDL_CreateTexture(windowRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
-			game->error("Failed to convert season image to current video surface: %s\n", SDL_GetError());
+		if (!(seasonImage = SDL_CreateTexture(windowRenderer, alphaPixelFormat, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
+			game->error("Failed to convert season image to current video texture: %s\n", SDL_GetError());
 			return -1;
 		}
 		if (SDL_SetRenderTarget(textureRenderer, seasonImage) < 0) {
@@ -375,7 +388,7 @@ int SdlWormikGui::initSeasonImage(SDL_Texture *img)
 	return 0;
 }
 
-int SdlWormikGui::newLevel(int season)
+int SdlWormikGui::initLevelImage(int season)
 {
 	SDL_RWops *sf;
 	int err;
@@ -449,11 +462,20 @@ int SdlWormikGui::newLevel(int season)
 	err = initSeasonImage(texture);
 	//SDL_DestroyTexture(texture);
 	SDL_FreeSurface(img);
+	if (err < 0)
+		return err;
+
+	invalOut(-INVO_MFULL, NULL);
+	return season;
+}
+
+int SdlWormikGui::newLevel(int season)
+{
+	int err = initLevelImage(season);
 	if (err < 0) {
 		game->fatal();
 	}
-	invalOut(-INVO_MFULL, NULL);
-	return season;
+	return err;
 }
 
 void SdlWormikGui::drawPoint(void *gc, unsigned x, unsigned y, unsigned short cont)
@@ -792,6 +814,11 @@ int SdlWormikGui::stdEvent(SDL_Event *ev)
 						game->fatal("Failed to set video mode: %s\n", SDL_GetError());
 					}
 				}
+				int season;
+				game->getState(NULL, &season);
+				if (initLevelImage(season) < 0) {
+					game->fatal("Failed to load season image\n");
+				}
 			}
 			invalOut(-INVO_MFULL, NULL);
 			return STDE_REDRAW;
@@ -811,6 +838,7 @@ int SdlWormikGui::stdEvent(SDL_Event *ev)
 
 	case SDL_WINDOWEVENT:
 		invlist[0].reset(INVO_MFULL); invlist[1].reset(INVO_MFULL);
+		redraw = true;
 		return STDE_REDRAW;
 
 	case SDL_USEREVENT:
@@ -874,9 +902,11 @@ int SdlWormikGui::showPopup(int stdrm)
 		else switch (stdr) {
 		case STDE_PROCESSED:
 			break;
+
 		case STDE_QUIT:
 			ret = 1;
 			break;
+
 		case STDE_UNKNOWN:
 			switch (ev.type) {
 			case SDL_KEYDOWN:
@@ -933,6 +963,7 @@ reswitch:
 		if (stdr >= STDE_SHOWBASE && stdr <= STDE_SHOWMAX) {
 			invalOut(-INVO_MFULL, NULL);
 			stdr = showPopup(stdr);
+			redraw = true;
 			goto reswitch;
 		}
 		else switch (stdr) {

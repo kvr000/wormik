@@ -80,7 +80,7 @@ target/LICENSE: LICENSE
 	cp -a $< $@
 
 depends:
-	$(CXX) -MM $(SOURCES) >target/.depends
+	$(CXX) -MM $(CFLAGS) $(SOURCES) >target/.depends
 
 target/.depends:
 	[ -d target ] || mkdir target
