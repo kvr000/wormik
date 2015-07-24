@@ -40,13 +40,13 @@ tags: no_tags
 	ctags -R
 
 tar:
-	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/src/ $$b/Makefile $$b/LICENSE $$b/PORTS $$b/README | gzip -9 >$$b/target/wormik-$(VERSION).tar.gz
+	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/src/ $$b/Makefile $$b/LICENSE $$b/PORTS $$b/README $$b/TECHNICAL | gzip -9 >$$b/target/wormik-$(VERSION).tar.gz
 
 btar:
 	cd target/ && tar fcv - README wormik wormik_?.png | gzip -9 > wormik-$(VERSION)-`uname -s`-`uname -i`.tar.gz
 
 install:
-	cd target/ && for f in wormik_?.png; do mkdir -p $(PREFIX)/share/wormik && cp $$f $(PREFIX)/share/wormik/ || break; done
+	cd target/ && for f in wormik_?.png; do mkdir -p $(PREFIX)/share/games/wormik && cp $$f $(PREFIX)/share/games/wormik/ || break; done
 	cd target/ && for f in wormik; do cp $$f $(PREFIX)/bin/ || break; done
 
 target/wormik: $(OBJECTS)
