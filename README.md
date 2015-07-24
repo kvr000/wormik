@@ -16,12 +16,13 @@ LGPL license...
 
 -- INSTALLATION
 
-SDL, SDL_image and SDL_ttf libraries are required for running and appropriate
+SDL2, SDL2_image and SDL2_ttf libraries are required for running and appropriate
 development files for compiling.
 Makefile is simple, no autoconf or other stuff, just run make and it should
 work properly.
-You can install it locally into any directory and run it from there, or install
-data files (wormik_*.png) to /usr/share/games/wormik.
+Built executables and resources are placed into target/ directory.
+You can install it either locally into any directory and run it from there, or
+install data files (wormik_*.png) to /usr/share/games/wormik (run make install).
 
 
 -- CONFIGURATION
