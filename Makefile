@@ -1,4 +1,4 @@
-PREFIX ?= /usr/
+PREFIX ?= /usr
 
 VERSION=2.0
 
@@ -8,11 +8,11 @@ CXX=g++
 #ADV=-DTESTOPTS
 
 LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
-CFLAGS=-DSVERSION=\"2.0\" -DNDEBUG -Isrc/main/cxx/ -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
+CFLAGS=-DSVERSION=\"2.0\" -DRESOURCE_DIR=\"$(PREFIX)/share/games/wormik\" -DNDEBUG -Isrc/main/cxx/ -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g
-RESOURCES=target/wormik_0.png target/wormik_1.png target/wormik_2.png target/wormik_3.png target/README target/LICENSE
+RESOURCES=target/wormik_0.png target/wormik_1.png target/wormik_2.png target/wormik_3.png target/README.md target/LICENSE
 TARGET=target/wormik target/wormik_0.png
 
 SOURCES= \
@@ -40,10 +40,10 @@ tags: no_tags
 	ctags -R
 
 tar:
-	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/src/ $$b/Makefile $$b/LICENSE $$b/PORTS $$b/README $$b/TECHNICAL | gzip -9 >$$b/target/wormik-$(VERSION).tar.gz
+	p=`pwd` && b=`basename $$p` && cd .. && tar fcv - $$b/src/ $$b/Makefile $$b/LICENSE $$b/README.md $$b/TECHNICAL | gzip -9 >$$b/target/wormik-$(VERSION).tar.gz
 
 btar:
-	cd target/ && tar fcv - README wormik wormik_?.png | gzip -9 > wormik-$(VERSION)-`uname -s`-`uname -i`.tar.gz
+	cd target/ && tar fcv - README.md LICENSE wormik wormik_?.png | gzip -9 > wormik-$(VERSION)-`uname -s`-`uname -i`.tar.gz
 
 install:
 	cd target/ && for f in wormik_?.png; do mkdir -p $(PREFIX)/share/games/wormik && cp $$f $(PREFIX)/share/games/wormik/ || break; done
@@ -51,19 +51,19 @@ install:
 
 target/wormik: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
-	echo "xyz $(CFLAGS)" | grep -- -O0 >/dev/null || strip $@
+	! echo "xyz $(CFLAGS)" | grep -- -O0 >/dev/null || strip $@
 
 target/object/cz/znj/sw/wormik/main.o: src/main/cxx/cz/znj/sw/wormik/main.cxx
-	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	@[ -d `dirname $@` ] || mkdir -p `dirname $@`
 	$(CXX) -o $@ -c $< $(CFLAGS)
 target/object/cz/znj/sw/wormik/WormikGameImpl.o: src/main/cxx/cz/znj/sw/wormik/WormikGameImpl.cxx
-	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	@[ -d `dirname $@` ] || mkdir -p `dirname $@`
 	$(CXX) -o $@ -c $< $(CFLAGS)
 target/object/cz/znj/sw/wormik/gui_common.o: src/main/cxx/cz/znj/sw/wormik/gui_common.cxx
-	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	@[ -d `dirname $@` ] || mkdir -p `dirname $@`
 	$(CXX) -o $@ -c $< $(CFLAGS)
 target/object/cz/znj/sw/wormik/SdlWormikGui.o: src/main/cxx/cz/znj/sw/wormik/SdlWormikGui.cxx
-	[ -d `dirname $@` ] || mkdir -p `dirname $@`
+	@[ -d `dirname $@` ] || mkdir -p `dirname $@`
 	$(CXX) -o $@ -c $< $(CFLAGS)
 
 target/wormik_0.png: src/main/resources/wormik_0.png
@@ -74,7 +74,7 @@ target/wormik_2.png: src/main/resources/wormik_2.png
 	cp -a $< $@
 target/wormik_3.png: src/main/resources/wormik_3.png
 	cp -a $< $@
-target/README: README
+target/README.md: README.md
 	cp -a $< $@
 target/LICENSE: LICENSE
 	cp -a $< $@

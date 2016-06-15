@@ -40,28 +40,28 @@ enum {
 const int body_image_pos[4][4][2] =
 {
 	{
-		{ },
+		{ 9, 9 },
 		{ 0, 3 },
 		{ 0, 4 },
 		{ 2, 2 },
 	},
 	{
 		{ 2, 3 },
-		{ },
+		{ 9, 9 },
 		{ 1, 3 },
 		{ 1, 4 },
 	},
 	{
 		{ 2, 4 },
 		{ 3, 3 },
-		{ },
+		{ 9, 9 },
 		{ 1, 2 },
 	},
 	{
 		{ 0, 2 },
 		{ 3, 4 },
 		{ 3, 2 },
-		{ },
+		{ 9, 9 },
 	},
 };
 
@@ -121,14 +121,18 @@ void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y)
 	*x *= GRECT_XSIZE; *y *= GRECT_YSIZE;
 }
 
-void InvalList::add(short x, short y)
+void InvalList::addObject(short x, short y)
 {
-	if (ilength >= sizeof(invlist)/sizeof(invlist[0])) {
-		flags |= WormikGui::INVO_BOARD;
-		ilength = 0;
-	}
-	else if ((flags&WormikGui::INVO_BOARD) == 0) {
-		invlist[ilength][0] = x; invlist[ilength][1] = y; ilength++;
+	if ((flags&WormikGui::INVO_BOARD) == 0) {
+		if (invalidatedLength >= sizeof(invalidatedList)/sizeof(invalidatedList[0])) {
+			flags |= WormikGui::INVO_BOARD;
+			invalidatedLength = 0;
+		}
+		else {
+			invalidatedList[invalidatedLength][0] = x;
+			invalidatedList[invalidatedLength][1] = y;
+			invalidatedLength++;
+		}
 	}
 }
 

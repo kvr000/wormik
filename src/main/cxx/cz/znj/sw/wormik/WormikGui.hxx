@@ -16,6 +16,12 @@ class WormikGame;
 class WormikGui
 {
 public:
+	enum {
+		WINDOW_WIDTH = 640,
+		WINDOW_HEIGHT = 480,
+		AREA_INFO_X = 480,
+	};
+
 	enum {		/* announcements */
 		ANC_DEAD,
 		ANC_EXIT,
@@ -23,14 +29,14 @@ public:
 
 	enum {
 		INVO_BOARD = 1,
-		INVO_NEWDEFS = 2,
+		INVO_NEW_DEFS = 2,
 		INVO_RECORD = 4,
 		INVO_SCORE = 8,
 		INVO_HEALTH = 16,
 		INVO_LENGTH = 32,
-		INVO_GSTATE = 64,
-		INVO_NBASE = 128,
-		INVO_FULL = (INVO_BOARD|INVO_NEWDEFS|INVO_RECORD|INVO_SCORE|INVO_HEALTH|INVO_LENGTH|INVO_GSTATE),
+		INVO_GAME_STATE = 64,
+		INVO_NEXT_BASE = 128,
+		INVO_FULL = (INVO_BOARD|INVO_NEW_DEFS|INVO_RECORD|INVO_SCORE|INVO_HEALTH|INVO_LENGTH|INVO_GAME_STATE),
 	};
 
 public:
@@ -53,7 +59,7 @@ public:
 	/* output changes functions */
 
 	/* invalidates points, or adds INVO_* flags if length is negative */
-	virtual void			invalOut(int length, unsigned (*points)[2]) = 0;
+	virtual void			invalidateOutput(int length, unsigned (*points)[2]) = 0;
 
 	/* wait for next move */
 	virtual int			waitNext(double interval) = 0;

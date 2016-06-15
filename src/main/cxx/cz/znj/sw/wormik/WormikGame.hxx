@@ -91,7 +91,9 @@ public:
 	virtual void			setConfig(const char *name, const char *value) = 0;
 
 	/* error reporting functions */
-	/*  fatal error occured, probably able to continue */
+	/*  debug message */
+	virtual int			debug(const char *fmt, ...) = 0;
+	/*  error occured, probably able to continue */
 	virtual int			error(const char *fmt, ...) = 0;
 	/*  fatal io error occured, unable to continue */
 	virtual void			fatal() = 0;
@@ -107,7 +109,7 @@ public:
 	/*  get health, length */
 	virtual void			getSnakeInfo(int *health, int *length) = 0;
 	/*  get record, returns if current is record */
-	virtual int			getRecord(int *record, time_t *rectime) = 0;
+	virtual bool			getRecord(int *record, time_t *rectime) = 0;
 
 	/* output functions */
 	/*  draws one point (if not newdef) */
