@@ -1,7 +1,4 @@
 .*.swp
 *.gif
-tags
-t
-target
-*.gz
-*.zip
+/tags
+/target

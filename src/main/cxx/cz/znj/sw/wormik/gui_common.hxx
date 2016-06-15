@@ -45,17 +45,28 @@ class InvalList
 public:
 	unsigned	flags;
 
-	short		invlist[128][2];
-	unsigned	ilength;
+	short		invalidatedList[128][2];
+	unsigned	invalidatedLength;
 
-	void		reset(unsigned flags);
-	void		add(short x, short y);
+	void		resetFlags(unsigned flags);
+	void		addFlags(unsigned flags);
+	void		addObject(short x, short y);
 };
 
-inline void InvalList::reset(unsigned flags_)
+inline void InvalList::resetFlags(unsigned flags_)
 {
 	flags = flags_;
-	ilength = 0;
+	if ((flags&WormikGui::INVO_BOARD) != 0) {
+		invalidatedLength = 0;
+	}
+}
+
+inline void InvalList::addFlags(unsigned flags_)
+{
+	flags |= flags_;
+	if ((flags&WormikGui::INVO_BOARD) != 0) {
+		invalidatedLength = 0;
+	}
 }
 
 
