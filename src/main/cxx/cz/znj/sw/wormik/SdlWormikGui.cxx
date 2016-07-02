@@ -47,17 +47,14 @@ public:
 	};
 
 	enum {
-		UEV_GAME_TIME,
-		UEV_DRAW_TIME,
-	};
-
-	enum {
 		CLR_MENU_BG		= 0,		/**< menu background */
 		CLR_MENU_FONT		= 1,		/**< menu font color */
 		CLR_EXCEPTION_FONT	= 2,		/**< exceptions font color */
 		CLR_ANNOUNCEMENT_FONT	= 3,		/**< announcement font color */
 		CLR_COUNT		= 4,
 	};
+
+	static const double		REDRAW_TIME;
 
 protected:
 	SDL_Window *			window;			/**< main window */
@@ -79,12 +76,9 @@ protected:
 	double				diffGameTime;		/**< difference to game time */
 	double				lastMove;		/**< time of last game update */
 
-	InvalList			invalidatedList[2];	/**< invalid regions list */
-	unsigned			currentInvList;		/**< current invlist */
+	InvalidatedList			invalidatedList[2];	/**< invalid regions list */
+	unsigned			nextInvalidatedList;		/**< current invlist */
 	bool				redraw;			/**< screen needs redraw */
-
-	volatile bool			pendingDrawEvent;	/**< indicator of draw time event */
-	volatile bool			pendingGameEvent;	/**< indicator of game time event */
 
 public:
 	/* constructor */		SdlWormikGui();
@@ -100,7 +94,8 @@ public:
 
 	virtual void			invalidateOutput(int len, unsigned (*points)[2]);
 
-	virtual int			waitNext(double interval);
+	virtual bool			waitStart();
+	virtual bool			waitNext(double interval);
 	virtual int			announce(int type);
 
 protected:
@@ -142,6 +137,8 @@ static double getDoubleTime(void)
 #endif
 }
 
+const double SdlWormikGui::REDRAW_TIME = 1/30.0;
+
 SdlWormikGui::SdlWormikGui()
 {
 	window = NULL;
@@ -174,7 +171,7 @@ int SdlWormikGui::initWindow()
 	colors[CLR_MENUEXC] = SDL_MapRGB(windowPixelFormat, 255, 255, 200);
 #endif
 
-	currentInvList = 0;
+	nextInvalidatedList = 0;
 	invalidatedList[0].resetFlags(INVO_SDL_FULL); invalidatedList[1].resetFlags(INVO_SDL_FULL);
 
 	return 0;
@@ -188,7 +185,8 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 	va_start(va, fname);
 
 	while (!f && (p = va_arg(va, const char *))) {
-		switch (*p++) {
+		const char *arg = va_arg(va, const char *);
+		switch (*p) {
 		case 'l':
 			{
 				FILE *lp;
@@ -215,7 +213,7 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 		case 'd':
 			{
 				char buf[PATH_MAX];
-				if (snprintf(buf, sizeof(buf), "%s/%s", p, fname) >= (int)sizeof(buf))
+				if (snprintf(buf, sizeof(buf), "%s/%s", arg, fname) >= (int)sizeof(buf))
 					break;
 				f = SDL_RWFromFile(buf, "r");
 			}
@@ -226,7 +224,7 @@ static SDL_RWops *findopenfile(const char *fname, ...)
 				FILE *fp;
 				char buf[PATH_MAX+32];
 				unsigned fl = strlen(fname);
-				if (snprintf(buf, sizeof(buf), "find %s -follow -name %s -print", p, fname) >= (int)sizeof(buf))
+				if (snprintf(buf, sizeof(buf), "find %s -follow -name %s -print", arg, fname) >= (int)sizeof(buf))
 					break;
 				if (!(fp = popen(buf, "r")))
 					break;
@@ -301,18 +299,18 @@ int SdlWormikGui::initGui()
 	}
 #if (defined _WIN32) || (defined _WIN64)
 	if (!ffo) {
-		strcpy(buf, "d");
-		GetSystemDirectory(buf+1, sizeof(buf)-1);
-		strcat(buf, "/../fonts");
-		ffo = findopenfile("courbd.ttf", buf, NULL);
+		if (GetSystemDirectory(buf, sizeof(buf)) <= sizeof(buf)) {
+			strcat(buf, "/../fonts");
+			ffo = findopenfile("courbd.ttf", "d", buf, NULL);
+		}
 	}
 #elif (defined __APPLE__)
 	if (!ffo) {
-		ffo = findopenfile("Andale Mono.ttf", "d/Library/Fonts", "l", NULL);
+		ffo = findopenfile("Andale Mono.ttf", "d", "/Library/Fonts", "l", "", NULL);
 	}
 #else
 	if (!ffo) {
-		ffo = findopenfile("FreeMonoBold.ttf", "d/usr/share/fonts/truetype/freefont", "l", "s/usr/share/fonts", "s/usr/lib/X11/fonts", NULL);
+		ffo = findopenfile("FreeMonoBold.ttf", "d", "/usr/share/fonts/truetype/freefont", "l", "", "s", "/usr/share/fonts", "s", "/usr/lib/X11/fonts", NULL);
 	}
 #endif
 	if (!ffo) {
@@ -322,7 +320,7 @@ int SdlWormikGui::initGui()
 #if (defined _WIN32) || (defined _WIN64)
 	strcat(buf, "/courbd.ttf");
 	SDL_RWclose(ffo);
-	font = TTF_OpenFont(buf+1, 15);
+	font = TTF_OpenFont(buf, 15);
 #else
 	font = TTF_OpenFontRW(ffo, 1, game->getConfigInt("fontsize", 15));
 #endif
@@ -431,16 +429,14 @@ int SdlWormikGui::initLevelImage(int season)
 	SDL_Color c[sizeof(colors)/sizeof(colors[0])];
 	unsigned i;
 
-	if ((unsigned)game->getConfigStr("datapath", dpath+1, sizeof(dpath)-1) >= sizeof(dpath)-1)
+	if ((unsigned)game->getConfigStr("datapath", dpath, sizeof(dpath)) >= sizeof(dpath))
 		dpath[0] = '\0';
-	else
-		dpath[0] = 'd';
 
 	for (;;) {
 		if (snprintf(fname, sizeof(fname), "wormik_%d.png", season) >= (int)sizeof(fname)) {
 			game->fatal("filename too long\n");
 		}
-		if (!(sf = findopenfile(fname, "d" RESOURCE_DIR, (dpath[0] == '\0')?"d.":dpath, NULL))) {
+		if (!(sf = findopenfile(fname, "d", RESOURCE_DIR, "d", (dpath[0] == '\0') ? "." : dpath, NULL))) {
 			if (season == 0)
 				game->fatal("failed to open %s: %s\n", fname, strerror(errno));
 			season = 0;
@@ -566,6 +562,7 @@ void SdlWormikGui::invalidateOutput(int len, unsigned (*points)[2])
 			invalidatedList[1].addObject(points[len][0], points[len][1]);
 		}
 	}
+	redraw = true;
 }
 
 void SdlWormikGui::drawText(int x, int y, Uint32 color, const char *text)
@@ -628,25 +625,25 @@ unsigned SdlWormikGui::drawBase(void)
 	unsigned ret = 0;
 	unsigned x, y;
 	SDL_Rect s, d;
-	InvalList *ic = &invalidatedList[currentInvList];
+	InvalidatedList *currentIl = &invalidatedList[nextInvalidatedList];
 
-	if ((ic->flags&INVO_BOARD) != 0) {
+	if ((currentIl->flags&INVO_BOARD) != 0) {
 		s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 		game->outGame(NULL, 0, 0, game->GAME_YSIZE-1, game->GAME_XSIZE-1);
 	}
 	else {
 		unsigned i;
-		for (i = 0; i < ic->invalidatedLength; i++) {
-			game->outPoint(NULL, ic->invalidatedList[i][0], ic->invalidatedList[i][1]);
+		for (i = 0; i < currentIl->invalidatedLength; i++) {
+			game->outPoint(NULL, currentIl->invalidatedList[i][0], currentIl->invalidatedList[i][1]);
 		}
 	}
 
-	if ((ic->flags&INVO_NEW_DEFS) != 0) {
+	if ((currentIl->flags&INVO_NEW_DEFS) != 0) {
 		if (game->outNewdefs(NULL) > 0)
 			ret |= INVO_NEW_DEFS;
 	}
 
-	if ((ic->flags&INVO_MENU) != 0) {
+	if ((currentIl->flags&INVO_MENU) != 0) {
 		findImagePos(WormikGame::GR_WALL, &x, &y);
 		s.x = x; s.y = y; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 		d.w = GRECT_XSIZE; d.h = GRECT_YSIZE;
@@ -676,9 +673,9 @@ unsigned SdlWormikGui::drawBase(void)
 		}
 	}
 
-	if ((ic->flags&(INVO_RECORD|INVO_SCORE|INVO_GAME_STATE|INVO_HEALTH|INVO_LENGTH)) != 0) {
+	if ((currentIl->flags&(INVO_RECORD|INVO_SCORE|INVO_GAME_STATE|INVO_HEALTH|INVO_LENGTH)) != 0) {
 		d.w = 144; d.h = 80; d.x = AREA_INFO_X;
-		if ((ic->flags&INVO_RECORD) != 0) {
+		if ((currentIl->flags&INVO_RECORD) != 0) {
 			struct tm t; char tc[32];
 			int record; time_t rectime; bool isNow;
 			isNow = game->getRecord(&record, &rectime);
@@ -687,7 +684,7 @@ unsigned SdlWormikGui::drawBase(void)
 			d.y = 16; SDL_RenderFillRect(windowRenderer, &d);
 			drawLTextf(-622, 28, colors[isNow ? CLR_EXCEPTION_FONT : CLR_MENU_FONT], "Record: %d\n%s\n", record, (rectime == 0) ? " " : tc);
 		}
-		if ((ic->flags&(INVO_SCORE|INVO_GAME_STATE)) != 0) {
+		if ((currentIl->flags&(INVO_SCORE|INVO_GAME_STATE)) != 0) {
 			int score, total, exit;
 			int level, season;
 			game->getState(&level, &season);
@@ -696,7 +693,7 @@ unsigned SdlWormikGui::drawBase(void)
 			d.y = 112; SDL_RenderFillRect(windowRenderer, &d);
 			drawLTextf(-622, 124, colors[(score >= exit)?CLR_EXCEPTION_FONT:CLR_MENU_FONT], "Score: %d\nLevel: %d/%d\n", total, level, (total-score)+exit);
 		}
-		if ((ic->flags&(INVO_HEALTH|INVO_LENGTH)) != 0) {
+		if ((currentIl->flags&(INVO_HEALTH|INVO_LENGTH)) != 0) {
 			int health, length;
 			game->getSnakeInfo(&health, &length);
 			SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[0]>>16), (Uint8)(colors[0]>>8), (Uint8)(colors[0]>>0), (Uint8)(colors[0]>>24));
@@ -705,7 +702,7 @@ unsigned SdlWormikGui::drawBase(void)
 		}
 	}
 
-	if ((ic->flags&INVO_DESC) != 0) {
+	if ((currentIl->flags&INVO_DESC) != 0) {
 		s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 		d.x = AREA_INFO_X; d.y = 19*GRECT_YSIZE; d.w = 9*GRECT_XSIZE; d.h = 10*GRECT_YSIZE;
 		SDL_SetRenderDrawColor(windowRenderer, (Uint8)(colors[CLR_MENU_BG]>>16), (Uint8)(colors[CLR_MENU_BG]>>8), (Uint8)(colors[CLR_MENU_BG]>>0), (Uint8)(colors[CLR_MENU_BG]>>24));
@@ -764,66 +761,24 @@ unsigned SdlWormikGui::drawAnnounce(unsigned n, const char *const text[])
 	return 0;
 }
 
-void SdlWormikGui::drawFinish(unsigned renderFlags)
+void SdlWormikGui::drawFinish(unsigned rerenderFlags)
 {
 	SDL_RenderPresent(windowRenderer);
-	invalidatedList[currentInvList].resetFlags(renderFlags);
-#if 0
-	if ((SDL_GetWindowFlags(window)&SDL_DOUBLEBUF) != 0) {
-		currentInvList ^= 1;
-		invalidatedList[currentInvList].flags |= renderFlags;
-	}
-#else
-	currentInvList ^= 1;
-	invalidatedList[currentInvList].addFlags(renderFlags);
-#endif
+	invalidatedList[nextInvalidatedList].resetFlags(rerenderFlags);
+	nextInvalidatedList ^= 1;
 	redraw = false;
-}
-
-Uint32 SdlWormikGui::gameTimerCallback(Uint32 interval, void *par)
-{
-	SdlWormikGui *self = (SdlWormikGui *)par;
-	if (!self->pendingGameEvent) {
-		SDL_Event ev;
-		ev.type = SDL_USEREVENT;
-		ev.user.code = SdlWormikGui::UEV_GAME_TIME;
-		SDL_PushEvent(&ev);
-		self->pendingGameEvent = true;
-	}
-	return interval;
-}
-
-Uint32 SdlWormikGui::drawTimerCallback(Uint32 interval, void *par)
-{
-	SdlWormikGui *self = (SdlWormikGui *)par;
-	if (!self->pendingDrawEvent) {
-		SDL_Event ev;
-		ev.type = SDL_USEREVENT;
-		ev.user.code = SdlWormikGui::UEV_DRAW_TIME;
-		SDL_PushEvent(&ev);
-		self->pendingDrawEvent = true;
-	}
-	return interval;
-}
-
-SDL_TimerID SdlWormikGui::createDrawTimer()
-{
-	SDL_TimerID t;
-	if (!(t = SDL_AddTimer(1000/16, &drawTimerCallback, this)))
-		game->error("unable to create drawTimer: %s\n", SDL_GetError());
-	return t;
 }
 
 enum {
 	STDE_UNKNOWN = -1,
 	STDE_PROCESSED = 0,
 	STDE_QUIT = 1,
-	STDE_GAME_TIMER = 2,
-	STDE_DRAW_TIMER = 3,
-	STDE_SHOW_BASE = 4,
-	STDE_SHOW_HELP = 5,
-	STDE_SHOW_ABOUT = 6,
-	STDE_SHOW_MAX = 6,
+	STDE_TIMEOUT = 2,
+	STDE_SHOW_BASE = 3,
+	STDE_SHOW_PAUSE = 3,
+	STDE_SHOW_HELP = 4,
+	STDE_SHOW_ABOUT = 5,
+	STDE_SHOW_MAX = 5,
 };
 
 int SdlWormikGui::processStandardEvent(SDL_Event *ev)
@@ -858,7 +813,7 @@ int SdlWormikGui::processStandardEvent(SDL_Event *ev)
 			}
 			invalidateOutput(-INVO_SDL_FULL, NULL);
 			redraw = true;
-			return STDE_PROCESSED;
+			return STDE_SHOW_PAUSE;
 
 		case SDLK_h:
 		case SDLK_HELP:
@@ -877,17 +832,6 @@ int SdlWormikGui::processStandardEvent(SDL_Event *ev)
 		invalidatedList[0].resetFlags(INVO_SDL_FULL); invalidatedList[1].resetFlags(INVO_SDL_FULL);
 		redraw = true;
 		return STDE_PROCESSED;
-
-	case SDL_USEREVENT:
-		switch (ev->user.code) {
-		case UEV_DRAW_TIME:
-			return STDE_DRAW_TIMER;
-
-		case UEV_GAME_TIME:
-			return STDE_GAME_TIMER;
-
-		}
-		break;
 	}
 	return STDE_UNKNOWN;
 }
@@ -919,7 +863,7 @@ int SdlWormikGui::showPopup(int messageEventId)
 			case STDE_SHOW_ABOUT:
 				text[ntext++] = "Wormik " SVERSION;
 				text[ntext++] = "See project homepage at";
-				text[ntext++] = "http://atrey.karlin.mff.cuni.cz/~rat/wormik/";
+				text[ntext++] = "http://github.com/kvr000/wormik/";
 				text[ntext++] = "                                            ";
 				text[ntext++] = "  Enjoy the game,                           ";
 				text[ntext++] = "                            Zbynek Vyskovsky";
@@ -1033,85 +977,80 @@ reswitch:
 	return ret;
 }
 
-int SdlWormikGui::waitNext(double waitInterval)
+bool SdlWormikGui::waitStart()
 {
-	pendingDrawEvent = false;
-	pendingGameEvent = false;
-	SDL_TimerID gameTimer = 0;
-	SDL_TimerID drawTimer = 0;
-	double time = getDoubleTime();
-	int ret = -1;
-	int pausing;
+	return waitNext(INFINITY);
+}
 
-	if (waitInterval == 0) {
-		pausing = -1;
-	}
-	else {
-		int wait;
-		pausing = 0;
-		if ((wait = int(((lastMove+waitInterval)-time)*(1000000/1000))) > 0) {
-			if (!(gameTimer = SDL_AddTimer(wait, &gameTimerCallback, this)))
-				game->fatal("creating SDL timer: %s\n", SDL_GetError());
+bool SdlWormikGui::waitNext(double waitInterval)
+{
+	double nextRedraw = invalidatedList[nextInvalidatedList^1].flags != 0 ? getDoubleTime()+REDRAW_TIME : INFINITY;
+	for (;;) {
+		int r;
+		SDL_Event ev;
+		double expire = INFINITY;
+		if (redraw) {
+			expire = 0;
+		}
+		else if ((invalidatedList[nextInvalidatedList].flags&INVO_DYN_FLAGS) != 0) {
+			if (nextRedraw < expire) {
+				expire = nextRedraw;
+			}
 		}
 		else {
-			gameTimerCallback(0, this);
+			nextRedraw = INFINITY;
 		}
-	}
-	drawTimer = createDrawTimer();
-	for (;;) {
-		SDL_Event ev;
-		if (redraw) {
-			unsigned renderFlags = 0;
-			time = getDoubleTime();
-			if ((diffGameTime = time-lastMove) > waitInterval) {
-				diffGameTime = waitInterval;
-			}
-			else if (diffGameTime < 0) {
-				// under some cirmustances diffGameTime may become negative
-				diffGameTime = 0;
-			}
-			renderFlags |= drawBase();
-			drawFinish(renderFlags);
+		if (lastMove+waitInterval < expire) {
+			expire = lastMove+waitInterval;
 		}
-		if (SDL_WaitEvent(&ev) < 0)
+		double eventWaitMs = ceil((expire-getDoubleTime())*1000);
+		int eventWaitMsCut = eventWaitMs < 0 ? 0 : eventWaitMs > 0x7fffffff ? 0x7fffffff : (int)eventWaitMs;
+		game->debug("waiting for %d\n", eventWaitMsCut);
+		if ((r = SDL_WaitEventTimeout(&ev, eventWaitMsCut)) < 0)
 			game->fatal("SDL WaitEvent: %s\n", SDL_GetError());
-		int stdEvent = processStandardEvent(&ev);
+		int stdEvent = r == 0 ? STDE_TIMEOUT : processStandardEvent(&ev);
 reswitch:
 		game->debug("std event: %d\n", stdEvent);
 		if (stdEvent >= STDE_SHOW_BASE && stdEvent <= STDE_SHOW_MAX) {
 			lastMove = 0;
 			diffGameTime = waitInterval;
-			pausing = stdEvent;
-			ret = -1;
+			waitInterval = INFINITY;
+			if (stdEvent == STDE_SHOW_PAUSE)
+				continue;
+			stdEvent = showPopup(stdEvent);
+			goto reswitch;
 		}
 		else switch (stdEvent) {
 		case STDE_PROCESSED:
 			break;
 
 		case STDE_QUIT:
-			ret = STDE_QUIT;
-			break;
+			return true;
 
-		case STDE_DRAW_TIMER:
-			if (ret >= 0 || (invalidatedList[currentInvList].flags&INVO_DYN_FLAGS) == 0) {
-				if (drawTimer != 0) {
-					SDL_RemoveTimer(drawTimer);
-					drawTimer = 0;
+		case STDE_TIMEOUT:
+			{
+				double currentTime = getDoubleTime();
+				if (nextRedraw <= currentTime) {
+					redraw = true;
 				}
-			}
-			redraw = true;
-			pendingDrawEvent = false;
-			break;
-
-		case STDE_GAME_TIMER:
-			if (gameTimer != 0) {
-				SDL_RemoveTimer(gameTimer);
-				gameTimer = 0;
-			}
-			pendingGameEvent = false;
-			if (!pausing && ret < 0) {
-				lastMove = lastMove+waitInterval;
-				ret = 0;
+				if (lastMove+waitInterval <= currentTime) {
+					lastMove = lastMove+waitInterval;
+					return false;
+				}
+				if (redraw) {
+					unsigned rerenderFlags;
+					double time = getDoubleTime();
+					if ((diffGameTime = time-lastMove) > waitInterval) {
+						diffGameTime = waitInterval;
+					}
+					else if (diffGameTime < 0) {
+						// under some cirmustances diffGameTime may become negative
+						diffGameTime = 0;
+					}
+					rerenderFlags = drawBase();
+					drawFinish(rerenderFlags);
+					nextRedraw = rerenderFlags != 0 ? currentTime+REDRAW_TIME : INFINITY;
+				}
 			}
 			break;
 
@@ -1123,9 +1062,8 @@ reswitch:
 					switch (ev.key.keysym.sym) {
 					case SDLK_p:
 						lastMove = 0;
+						waitInterval = INFINITY;
 						redraw = true;
-						pausing = -1;
-						ret = -1;
 						break;
 
 					case SDLK_RIGHT:
@@ -1148,41 +1086,17 @@ reswitch:
 						break;
 					}
 					if (dir >= 0) {
-						//putchar('\a'); fflush(stdout);
 						game->changeDirection(dir);
-						if (pausing != 0) {
+						if (waitInterval == INFINITY) {
 							lastMove = getDoubleTime();
-							ret = 0;
-							pausing = 0;
+							return false;
 						}
 					}
 				}
 				break;
 			}
 		}
-		if (ret >= 0 || pausing != 0) {
-			if (gameTimer != 0) {
-				SDL_RemoveTimer(gameTimer);
-				gameTimer = 0;
-			}
-			if (drawTimer != 0) {
-				SDL_RemoveTimer(drawTimer);
-				drawTimer = 0;
-			}
-			if (!pendingGameEvent && !pendingDrawEvent) {
-				if (pausing > 0) {
-					stdEvent = showPopup(pausing);
-					pausing = -1;
-					goto reswitch;
-				}
-				else if (ret >= 0) {
-					break;
-				}
-			}
-		}
 	}
-	diffGameTime = 0;
-	return ret;
 }
 
 WormikGui *create_WormikGui(void)

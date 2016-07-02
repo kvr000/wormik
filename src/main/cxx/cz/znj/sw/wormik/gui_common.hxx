@@ -40,7 +40,7 @@ extern const int tail_image_pos[4][2];
 /* returns image positions for board-type */
 void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y);
 
-class InvalList
+class InvalidatedList
 {
 public:
 	unsigned	flags;
@@ -53,7 +53,7 @@ public:
 	void		addObject(short x, short y);
 };
 
-inline void InvalList::resetFlags(unsigned flags_)
+inline void InvalidatedList::resetFlags(unsigned flags_)
 {
 	flags = flags_;
 	if ((flags&WormikGui::INVO_BOARD) != 0) {
@@ -61,7 +61,7 @@ inline void InvalList::resetFlags(unsigned flags_)
 	}
 }
 
-inline void InvalList::addFlags(unsigned flags_)
+inline void InvalidatedList::addFlags(unsigned flags_)
 {
 	flags |= flags_;
 	if ((flags&WormikGui::INVO_BOARD) != 0) {

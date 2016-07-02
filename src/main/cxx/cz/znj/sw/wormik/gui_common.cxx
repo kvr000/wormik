@@ -121,7 +121,7 @@ void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y)
 	*x *= GRECT_XSIZE; *y *= GRECT_YSIZE;
 }
 
-void InvalList::addObject(short x, short y)
+void InvalidatedList::addObject(short x, short y)
 {
 	if ((flags&WormikGui::INVO_BOARD) == 0) {
 		if (invalidatedLength >= sizeof(invalidatedList)/sizeof(invalidatedList[0])) {
