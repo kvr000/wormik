@@ -61,8 +61,10 @@ public:
 	/* invalidates points, or adds INVO_* flags if length is negative */
 	virtual void			invalidateOutput(int length, unsigned (*points)[2]) = 0;
 
-	/* wait for next move */
-	virtual int			waitNext(double interval) = 0;
+	/* wait for first move, returns false to continue, true for quit  */
+	virtual bool			waitStart() = 0;
+	/* wait for next move, returns false to continue, true for quit  */
+	virtual bool			waitNext(double interval) = 0;
 
 	/* announce */
 	virtual int			announce(int type) = 0;

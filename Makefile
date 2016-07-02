@@ -51,7 +51,7 @@ install:
 
 target/wormik: $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
-	! echo "xyz $(CFLAGS)" | grep -- -O0 >/dev/null || strip $@
+	echo "xyz $(CFLAGS)" | grep -- -O0 >/dev/null || strip $@
 
 target/object/cz/znj/sw/wormik/main.o: src/main/cxx/cz/znj/sw/wormik/main.cxx
 	@[ -d `dirname $@` ] || mkdir -p `dirname $@`

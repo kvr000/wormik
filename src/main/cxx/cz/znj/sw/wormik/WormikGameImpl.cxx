@@ -17,6 +17,11 @@
 
 #include <sys/stat.h>
 
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+
 #include "cz/znj/sw/wormik/platform.hxx"
 
 #include "cz/znj/sw/wormik/WormikGame.hxx"
@@ -122,6 +127,8 @@ protected:
 	void				saveRecord();
 
 	void				exit(int n);
+
+	void				printLogTimestamp();
 };
 
 static const int direction_moves[4][2] = { { 1, 0 }, { 0, -1 }, { -1, 0 }, { 0, 1} };
@@ -510,10 +517,10 @@ void WormikGameImpl::initBoard()
 	//snake_grow = 0;
 	snake_health = 4;
 
-	snake_pos[0].x = GAME_XSIZE/2; snake_pos[0].y = GAME_YSIZE/2+1; 
-	snake_pos[1].x = GAME_XSIZE/2; snake_pos[1].y = GAME_YSIZE/2+0; 
-	snake_pos[2].x = GAME_XSIZE/2; snake_pos[2].y = GAME_YSIZE/2-1; 
-	snake_pos[3].x = GAME_XSIZE/2; snake_pos[3].y = GAME_YSIZE/2-2; 
+	snake_pos[0].x = GAME_XSIZE/2; snake_pos[0].y = GAME_YSIZE/2+1;
+	snake_pos[1].x = GAME_XSIZE/2; snake_pos[1].y = GAME_YSIZE/2+0;
+	snake_pos[2].x = GAME_XSIZE/2; snake_pos[2].y = GAME_YSIZE/2-1;
+	snake_pos[3].x = GAME_XSIZE/2; snake_pos[3].y = GAME_YSIZE/2-2;
 	snake_len = 4;
 
 	board[GAME_YSIZE/2-2][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKETAIL, SDIR_UP, SDIR_DOWN);
@@ -658,10 +665,9 @@ void WormikGameImpl::run(void)
 	int action = 2; /* exit: 1; dead: 2, quit: 3 */
 
 	while (action != 3) {
-		int gret;
-		double inter = 0.400000;
+		double interval = 0.400000;
 		double tadd_health = 5.0;
-		double tout_health = tadd_health+inter;
+		double tout_health = tadd_health+interval;
 
 		if (action == 2) {
 			snake_grow = 0;
@@ -687,7 +693,7 @@ void WormikGameImpl::run(void)
 		action = 0;
 		initBoard();
 
-		if ((gret = gui->waitNext(0)) == 1)
+		if (gui->waitStart())
 			goto quit;
 		state_game = GS_RUNNING;
 		for (;;) {
@@ -695,7 +701,7 @@ void WormikGameImpl::run(void)
 			unsigned npos[2];
 			unsigned oldscore = state_levscore;
 
-			if ((tout_health -= inter) <= 0) {
+			if ((tout_health -= interval) <= 0) {
 				snake_health++;
 				invof |= WormikGui::INVO_HEALTH;
 				if (tadd_health < 8.0)
@@ -716,7 +722,7 @@ void WormikGameImpl::run(void)
 				unsigned inval[sizeof(newdefs)/sizeof(newdefs[0])][2];
 				unsigned ni, di;
 				for (di = ni = 0; ni < ndlen; ni++) {
-					if ((newdefs[ni].timeout -= inter) <= 0) {
+					if ((newdefs[ni].timeout -= interval) <= 0) {
 						board[newdefs[ni].y][newdefs[ni].x] = defcnts[newdefs[ni].defsi].def;
 						inval[il][0] = newdefs[ni].x; inval[il][1] = newdefs[ni].y;
 						il++;
@@ -861,23 +867,23 @@ step_hit:
 				}
 				if (old_len != snake_len) {
 					double c;
-					if (inter > 0.30)
+					if (interval > 0.30)
 						c = 0.002;
-					else if (inter > 0.25)
+					else if (interval > 0.25)
 						c = 0.0012;
-					else if (inter > 0.20)
+					else if (interval > 0.20)
 						c = 0.0007;
-					else if (inter > 0.15)
+					else if (interval > 0.15)
 						c = 0.0005;
 					else
 						c = 0;
 					if (snake_len < old_len)
 						c *= 1.5;
-					if ((inter -= c) < 0.15)
-						inter = 0.15;
-					//printf("speed: %4.2f (%6.4f)\n", 1.0/inter, inter);
+					if ((interval -= c) < 0.15)
+						interval = 0.15;
+					//printf("speed: %4.2f (%6.4f)\n", 1.0/interval, interval);
 				}
-				for (float latency = (float)inter/8; latency < inter; latency += (float)inter/4) {
+				for (float latency = (float)interval/8; latency < interval; latency += (float)interval/4) {
 					if (genDef(latency) == 0 || 0)
 						break;
 				}
@@ -885,7 +891,7 @@ step_hit:
 			gui->invalidateOutput(-invof, NULL);
 			if (action != 0)
 				break;
-			if ((gret = gui->waitNext(inter)) == 1)
+			if (gui->waitNext(interval))
 				goto quit;
 		}
 		if (stats_record < 0)
@@ -908,9 +914,22 @@ quit:
 	exit(0);
 }
 
+void WormikGameImpl::printLogTimestamp()
+{
+	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	std::time_t nowAsTimeT = std::chrono::system_clock::to_time_t(now);
+	std::chrono::milliseconds nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+	std::stringstream nowString;
+	nowString
+		<< std::put_time(std::localtime(&nowAsTimeT), "%Y-%m-%d %H:%M:%S")
+		<< '.' << std::setfill('0') << std::setw(3) << nowMs.count() << " ";
+	fputs(nowString.str().c_str(), stderr);
+}
+
 int WormikGameImpl::debug(const char *fmt, ...)
 {
 	if (isDebug) {
+		printLogTimestamp();
 		va_list va;
 		va_start(va, fmt);
 		vfprintf(stderr, fmt, va);
@@ -920,6 +939,7 @@ int WormikGameImpl::debug(const char *fmt, ...)
 
 int WormikGameImpl::error(const char *fmt, ...)
 {
+	printLogTimestamp();
 	va_list va;
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
@@ -928,6 +948,8 @@ int WormikGameImpl::error(const char *fmt, ...)
 
 void WormikGameImpl::fatal()
 {
+	printLogTimestamp();
+	fprintf(stderr, "\n");
 	exit(126);
 }
 
@@ -935,6 +957,7 @@ void WormikGameImpl::fatal(const char *fmt, ...)
 {
 	va_list va;
 	va_start(va, fmt);
+	printLogTimestamp();
 	fprintf(stderr, "fatal error occured: ");
 	vfprintf(stderr, fmt, va);
 	fatal();
