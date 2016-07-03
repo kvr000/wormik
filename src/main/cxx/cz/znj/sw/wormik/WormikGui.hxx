@@ -67,7 +67,7 @@ public:
 	virtual bool			waitNext(double interval) = 0;
 
 	/* announce */
-	virtual int			announce(int type) = 0;
+	virtual bool			announce(int type) = 0;
 };
 
 

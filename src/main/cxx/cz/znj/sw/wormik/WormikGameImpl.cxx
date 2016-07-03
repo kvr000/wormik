@@ -898,11 +898,11 @@ step_hit:
 			saveRecord();
 		switch (action) {
 		case 1:
-			if (gui->announce(WormikGui::ANC_EXIT) > 0)
+			if (gui->announce(WormikGui::ANC_EXIT))
 				goto quit;
 			break;
 		case 2:
-			if (gui->announce(WormikGui::ANC_DEAD) > 0)
+			if (gui->announce(WormikGui::ANC_DEAD))
 				goto quit;
 			break;
 		}

@@ -93,10 +93,11 @@ public:
 	virtual int			drawNewdef(void *gc, unsigned x, unsigned y, unsigned short type, double timeout, double total);
 
 	virtual void			invalidateOutput(int len, unsigned (*points)[2]);
+	virtual void			invalidateAll();
 
 	virtual bool			waitStart();
 	virtual bool			waitNext(double interval);
-	virtual int			announce(int type);
+	virtual bool			announce(int type);
 
 protected:
 	int				initWindow();
@@ -137,7 +138,7 @@ static double getDoubleTime(void)
 #endif
 }
 
-const double SdlWormikGui::REDRAW_TIME = 1/30.0;
+const double SdlWormikGui::REDRAW_TIME = 1/20.0;
 
 SdlWormikGui::SdlWormikGui()
 {
@@ -331,6 +332,8 @@ int SdlWormikGui::initGui()
 	if (initWindow() < 0) {
 		goto err;
 	}
+	redraw = true;
+	game->debug("Initialized GUI\n");
 	return 0;
 
 err:
@@ -565,6 +568,11 @@ void SdlWormikGui::invalidateOutput(int len, unsigned (*points)[2])
 	redraw = true;
 }
 
+void SdlWormikGui::invalidateAll()
+{
+	invalidateOutput(-INVO_SDL_FULL, NULL);
+}
+
 void SdlWormikGui::drawText(int x, int y, Uint32 color, const char *text)
 {
 	SDL_Color clr;
@@ -627,9 +635,12 @@ unsigned SdlWormikGui::drawBase(void)
 	SDL_Rect s, d;
 	InvalidatedList *currentIl = &invalidatedList[nextInvalidatedList];
 
+	// reset all screen prior to drawing, reusing old one does not work everywhere correctly
+	currentIl->resetFlags(INVO_SDL_FULL);
+
 	if ((currentIl->flags&INVO_BOARD) != 0) {
 		s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
-		game->outGame(NULL, 0, 0, game->GAME_YSIZE-1, game->GAME_XSIZE-1);
+		game->outGame(NULL, 0, 0, game->GAME_XSIZE-1, game->GAME_YSIZE-1);
 	}
 	else {
 		unsigned i;
@@ -637,6 +648,7 @@ unsigned SdlWormikGui::drawBase(void)
 			game->outPoint(NULL, currentIl->invalidatedList[i][0], currentIl->invalidatedList[i][1]);
 		}
 	}
+	currentIl->invalidatedLength = 0;
 
 	if ((currentIl->flags&INVO_NEW_DEFS) != 0) {
 		if (game->outNewdefs(NULL) > 0)
@@ -811,8 +823,7 @@ int SdlWormikGui::processStandardEvent(SDL_Event *ev)
 					game->fatal("Failed to load season image\n");
 				}
 			}
-			invalidateOutput(-INVO_SDL_FULL, NULL);
-			redraw = true;
+			invalidateAll();
 			return STDE_SHOW_PAUSE;
 
 		case SDLK_h:
@@ -839,8 +850,7 @@ int SdlWormikGui::processStandardEvent(SDL_Event *ev)
 int SdlWormikGui::showPopup(int messageEventId)
 {
 	int ret = -1;
-	invalidateOutput(-INVO_MESSAGE, NULL);
-	redraw = true;
+	invalidateAll();
 	do {
 		if (redraw) {
 			int ntext = 0;
@@ -900,6 +910,7 @@ int SdlWormikGui::showPopup(int messageEventId)
 					redraw = true;
 					ret = STDE_PROCESSED;
 					break;
+
 				default:
 					break;
 				}
@@ -908,43 +919,45 @@ int SdlWormikGui::showPopup(int messageEventId)
 			break;
 		}
 	} while (ret < 0);
-	invalidateOutput(-INVO_SDL_FULL, NULL);
+	invalidateAll();
 	return ret;
 }
 
-int SdlWormikGui::announce(int anc)
+bool SdlWormikGui::announce(int announcement)
 {
-	int ret = -1;
-
-	invalidateOutput(-INVO_MESSAGE, NULL);
-	redraw = true;
+	invalidateAll();
 	for (;;) {
-		SDL_Event ev;
 		if (redraw) {
 			int ntext = 0;
 			const char *text[2];
 
 			drawBase();
-			switch (anc) {
+			game->debug("Drawing announce\n");
+			switch (announcement) {
 			case ANC_DEAD:
 				text[ntext++] = "You are dead!";
 				break;
+
 			case ANC_EXIT:
 				text[ntext++] = "You moved to next level,";
 				text[ntext++] = "congratulations!";
 				break;
+
 			default:
 				assert(0);
 			}
 			drawAnnounce(ntext, text);
 			drawFinish(0);
 		}
+		SDL_Event ev;
 		if (SDL_WaitEvent(&ev) < 0)
 			game->fatal("SDL WaitEvent: %s\n", SDL_GetError());
 		int stdEvent = processStandardEvent(&ev);
 reswitch:
-		if (stdEvent >= STDE_SHOW_BASE && stdEvent <= STDE_SHOW_MAX) {
-			invalidateOutput(-INVO_SDL_FULL, NULL);
+		if (stdEvent == STDE_SHOW_PAUSE) {
+			continue;
+		}
+		else if (stdEvent >= STDE_SHOW_BASE && stdEvent <= STDE_SHOW_MAX) {
 			stdEvent = showPopup(stdEvent);
 			redraw = true;
 			goto reswitch;
@@ -952,17 +965,19 @@ reswitch:
 		else switch (stdEvent) {
 		case STDE_PROCESSED:
 			break;
+
 		case STDE_QUIT:
-			ret = 1;
-			break;
+			return true;
+
 		case STDE_UNKNOWN:
 			switch (ev.type) {
 			case SDL_KEYDOWN:
 				switch (ev.key.keysym.sym) {
 				case SDLK_SPACE:
 				case SDLK_RETURN:
-					ret = 0;
-					break;
+					invalidateAll();
+					return false;
+
 				default:
 					break;
 				}
@@ -970,11 +985,7 @@ reswitch:
 			}
 			break;
 		}
-		if (ret >= 0)
-			break;
 	}
-	invalidateOutput(-INVO_SDL_FULL, NULL);
-	return ret;
 }
 
 bool SdlWormikGui::waitStart()
@@ -1034,17 +1045,18 @@ reswitch:
 					redraw = true;
 				}
 				if (lastMove+waitInterval <= currentTime) {
+					game->debug("Game time\n");
 					lastMove = lastMove+waitInterval;
 					return false;
 				}
 				if (redraw) {
+					game->debug("Redrawing\n");
 					unsigned rerenderFlags;
 					double time = getDoubleTime();
 					if ((diffGameTime = time-lastMove) > waitInterval) {
 						diffGameTime = waitInterval;
 					}
-					else if (diffGameTime < 0) {
-						// under some cirmustances diffGameTime may become negative
+					else if (diffGameTime < 0 || waitInterval == INFINITY) {
 						diffGameTime = 0;
 					}
 					rerenderFlags = drawBase();
@@ -1061,7 +1073,6 @@ reswitch:
 					int dir = -1;
 					switch (ev.key.keysym.sym) {
 					case SDLK_p:
-						lastMove = 0;
 						waitInterval = INFINITY;
 						redraw = true;
 						break;
