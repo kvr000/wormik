@@ -83,20 +83,20 @@ const int tail_image_pos[4][2] =
 
 void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y)
 {
-	switch (WormikGame::GR_GET_FTYPE(t)) {
+	switch (WormikGame::GR_GET_FULL_TYPE(t)) {
 	case WormikGame::GR_NONE:
 		*x = SP_NONE_X; *y = SP_NONE_Y;
 		break;
 	case WormikGame::GR_WALL:
 		*x = SP_WALL_X; *y = SP_WALL_Y;
 		break;
-	case WormikGame::GR_POSIT:
+	case WormikGame::GR_POSITIVE:
 		*x = SP_POSIT_X; *y = SP_POSIT_Y;
 		break;
-	case WormikGame::GR_POSIT2:
+	case WormikGame::GR_POSITIVE_2:
 		*x = SP_POSIT2_X; *y = SP_POSIT2_Y;
 		break;
-	case WormikGame::GR_NEGAT:
+	case WormikGame::GR_NEGATIVE:
 		*x = SP_NEGAT_X; *y = SP_NEGAT_Y;
 		break;
 	case WormikGame::GR_DEATH:
@@ -105,13 +105,13 @@ void findImagePos(WormikGame::board_def t, unsigned *x, unsigned *y)
 	case WormikGame::GR_EXIT:
 		*x = SP_EXIT_X; *y = SP_EXIT_Y;
 		break;
-	case WormikGame::GR_BSNAKE+WormikGame::GSF_SNAKEHEAD:
+	case WormikGame::GR_BASE_SNAKE+WormikGame::GSF_SNAKE_HEAD:
 		*x = head_image_pos[WormikGame::GR_GET_IN(t)][0]; *y = head_image_pos[WormikGame::GR_GET_IN(t)][1];
 		break;
-	case WormikGame::GR_BSNAKE+WormikGame::GSF_SNAKEBODY:
+	case WormikGame::GR_BASE_SNAKE+WormikGame::GSF_SNAKE_BODY:
 		*x = body_image_pos[WormikGame::GR_GET_IN(t)][WormikGame::GR_GET_OUT(t)][0]; *y = body_image_pos[WormikGame::GR_GET_IN(t)][WormikGame::GR_GET_OUT(t)][1];
 		break;
-	case WormikGame::GR_BSNAKE+WormikGame::GSF_SNAKETAIL:
+	case WormikGame::GR_BASE_SNAKE+WormikGame::GSF_SNAKE_TAIL:
 		*x = tail_image_pos[WormikGame::GR_GET_OUT(t)][0]; *y = tail_image_pos[WormikGame::GR_GET_OUT(t)][1];
 		break;
 	default:

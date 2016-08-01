@@ -8,7 +8,7 @@ CXX=g++
 #ADV=-DTESTOPTS
 
 LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
-CFLAGS=-DSVERSION=\"2.0\" -DRESOURCE_DIR=\"$(PREFIX)/share/games/wormik\" -DNDEBUG -Isrc/main/cxx/ -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
+CFLAGS=-DSVERSION=\"2.0\" -DRESOURCE_DIR=\"$(PREFIX)/share/games/wormik\" -DNDEBUG -Isrc/main/cxx/ --std=c++17 -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g

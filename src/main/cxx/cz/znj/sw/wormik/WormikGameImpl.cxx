@@ -112,6 +112,7 @@ public:
 	virtual bool 			getRecord(int *record, time_t *rectime);
 
 	virtual void			outPoint(void *gc, unsigned x, unsigned y);
+	virtual void			outStatic(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1);
 	virtual void			outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1);
 	virtual int			outNewdefs(void *gc);
 
@@ -122,7 +123,7 @@ protected:
 
 	void				decDefs(board_def def);
 	int				genDef(float latency);
-	int				delNewdef(unsigned x, unsigned y);
+	bool				deleteNewDef(unsigned x, unsigned y);
 
 	void				saveRecord();
 
@@ -149,10 +150,10 @@ WormikGameImpl::WormikGameImpl()
 
 	isDebug = getConfigInt("debug", 0) != 0;
 
-	defcnts[i].def = GR_EXIT; /*defcnts[i].max = 0;*/ defcnts[i].timeout = 2.0; i++;
-	defcnts[i].def = GR_POSIT; defcnts[i].max = 50; defcnts[i].timeout = 2.0; i++;
-	defcnts[i].def = GR_POSIT2; defcnts[i].max = 30; defcnts[i].timeout = 2.0; i++;
-	defcnts[i].def = GR_NEGAT; defcnts[i].max = 20; defcnts[i].timeout = 2.0; i++;
+	defcnts[i].def = GR_EXIT; defcnts[i].max = 0; defcnts[i].timeout = 2.0; i++;
+	defcnts[i].def = GR_POSITIVE; defcnts[i].max = TILES_COUNT_POSITIVE; defcnts[i].timeout = 2.0; i++;
+	defcnts[i].def = GR_POSITIVE_2; defcnts[i].max = TILES_COUNT_POSITIVE_2; defcnts[i].timeout = 2.0; i++;
+	defcnts[i].def = GR_NEGATIVE; defcnts[i].max = TILES_COUNT_NEGATIVE; defcnts[i].timeout = 2.0; i++;
 	assert(i == DEFCNTSMAX);
 }
 
@@ -303,8 +304,21 @@ bool WormikGameImpl::getRecord(int *record, time_t *rectime)
 
 void WormikGameImpl::outPoint(void *gc, unsigned x, unsigned y)
 {
-	if (board[y][x] != GR_NEWDEF)
+	if (board[y][x] != GR_NEW_DEF)
 		gui->drawPoint(gc, x, y, board[y][x]);
+}
+
+void WormikGameImpl::outStatic(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1)
+{
+	assert(x0 >= 0);
+	assert(y0 >= 0);
+	assert(x1 < GAME_XSIZE);
+	assert(y1 < GAME_YSIZE);
+	for (unsigned y = y0; y <= y1; y++) {
+		for (unsigned x = x0; x <= x1; x++) {
+			gui->drawStatic(gc, x, y, board[y][x] == GR_WALL ? board[y][x] : GR_NONE);
+		}
+	}
 }
 
 void WormikGameImpl::outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1)
@@ -379,7 +393,7 @@ int WormikGameImpl::generateWalls(unsigned headx, unsigned heady)
 	access[heady][headx] = 0;
 	access[heady+1][headx] = -1;
 
-	for (wallcnt = 0; wallcnt < 180; ) {
+	for (wallcnt = 0; wallcnt < TILES_COUNT_WALLS; ) {
 		unsigned x, y;
 		unsigned l;
 		bool isok = true;
@@ -461,7 +475,7 @@ int WormikGameImpl::generateWalls(unsigned headx, unsigned heady)
 			wallcnt++;
 		}
 	}
-	for (deathcnt = 0; deathcnt < 20; deathcnt++) {
+	for (deathcnt = 0; deathcnt < TILES_COUNT_DEATH; deathcnt++) {
 		unsigned x, y;
 		unsigned l;
 		l = randrange(1, wallcnt-deathcnt);
@@ -513,7 +527,7 @@ void WormikGameImpl::initBoard()
 	}
 	freecnt = GAME_YSIZE*GAME_XSIZE-2*GAME_XSIZE-2*(GAME_YSIZE-2);
 
-	snake_dir = 3;
+	snake_dir = SDIR_SOUTH;
 	//snake_grow = 0;
 	snake_health = 4;
 
@@ -523,10 +537,10 @@ void WormikGameImpl::initBoard()
 	snake_pos[3].x = GAME_XSIZE/2; snake_pos[3].y = GAME_YSIZE/2-2;
 	snake_len = 4;
 
-	board[GAME_YSIZE/2-2][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKETAIL, SDIR_UP, SDIR_DOWN);
-	board[GAME_YSIZE/2-1][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKEBODY, SDIR_UP, SDIR_DOWN);
-	board[GAME_YSIZE/2+0][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKEBODY, SDIR_UP, SDIR_DOWN);
-	board[GAME_YSIZE/2+1][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKEHEAD, SDIR_UP, SDIR_DOWN);
+	board[GAME_YSIZE/2-2][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKE_TAIL, SDIR_NORTH, SDIR_SOUTH);
+	board[GAME_YSIZE/2-1][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKE_BODY, SDIR_NORTH, SDIR_SOUTH);
+	board[GAME_YSIZE/2+0][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKE_BODY, SDIR_NORTH, SDIR_SOUTH);
+	board[GAME_YSIZE/2+1][GAME_XSIZE/2] = GR_SNAKE(GSF_SNAKE_HEAD, SDIR_NORTH, SDIR_SOUTH);
 	board[GAME_YSIZE/2+2][GAME_XSIZE/2] = GR_NONE;
 	board[GAME_YSIZE/2+3][GAME_XSIZE/2] = GR_NONE;
 	freecnt -= 6;
@@ -536,9 +550,9 @@ void WormikGameImpl::initBoard()
 	generateWalls(GAME_XSIZE/2, GAME_YSIZE/2+1);
 
 #if 0
-	generateType(GR_POSIT, 50, GR_INVALID);
-	generateType(GR_POSIT2, 30, GR_INVALID);
-	generateType(GR_NEGAT, 20, GR_INVALID);
+	generateType(GR_POSITIVE, 50, GR_INVALID);
+	generateType(GR_POSITIVE_2, 30, GR_INVALID);
+	generateType(GR_NEGATIVE, 20, GR_INVALID);
 #endif
 	assert(defcnts[0].def == GR_EXIT); defcnts[0].max = 0;
 	for (int i = 0; i < DEFCNTSMAX; i++)
@@ -553,6 +567,7 @@ void WormikGameImpl::initBoard()
 		}
 	}
 	ndlen = 0;
+
 	state_season = gui->newLevel(state_season);
 }
 
@@ -614,20 +629,20 @@ int WormikGameImpl::genDef(float latency)
 	newdefs[ndlen].timeout = defcnts[bi].timeout+latency;
 	ndlen++;
 	defcnts[bi].cnt++;
-	board[y][x] = GR_NEWDEF;
+	board[y][x] = GR_NEW_DEF;
 	freecnt--;
 	gui->invalidateOutput(-WormikGui::INVO_NEW_DEFS, NULL);
 	return 1;
 }
 
-int WormikGameImpl::delNewdef(unsigned x, unsigned y)
+bool WormikGameImpl::deleteNewDef(unsigned x, unsigned y)
 {
 	unsigned p[2];
 	board_def def;
 	unsigned i;
 	unsigned di;
-	bool delit;
-	assert(board[y][x] == GR_NEWDEF);
+	bool deleteIt;
+	assert(board[y][x] == GR_NEW_DEF);
 	for (i = 0; ; i++) {
 		assert(i < ndlen);
 		if (newdefs[i].x == (int)x && newdefs[i].y == (int)y)
@@ -637,18 +652,20 @@ int WormikGameImpl::delNewdef(unsigned x, unsigned y)
 	def = defcnts[di].def;
 	switch (def) {
 	case GR_EXIT:
-		delit = newdefs[i].timeout/defcnts[di].timeout > 0.75;
+		deleteIt = newdefs[i].timeout/defcnts[di].timeout > TIMEOUT_EXIT;
 		break;
-	case GR_POSIT:
-	case GR_POSIT2:
-		delit = newdefs[i].timeout/defcnts[di].timeout > 0.3;
+
+	case GR_POSITIVE:
+	case GR_POSITIVE_2:
+		deleteIt = newdefs[i].timeout/defcnts[di].timeout > TIMEOUT_POSITIVE;
 		break;
+
 	default:
-		delit = true;
+		deleteIt = true;
 		break;
 	}
 	memmove(newdefs+i, newdefs+i+1, (--ndlen-i)*sizeof(newdefs[0]));
-	if (delit) {
+	if (deleteIt) {
 		decDefs(def);
 		board[y][x] = GR_NONE;
 	}
@@ -657,7 +674,7 @@ int WormikGameImpl::delNewdef(unsigned x, unsigned y)
 		gui->invalidateOutput(1, &p);
 		board[y][x] = def;
 	}
-	return delit;
+	return deleteIt;
 }
 
 void WormikGameImpl::run(void)
@@ -745,8 +762,9 @@ step_hit:
 				action = 2;
 				invof |= WormikGui::INVO_HEALTH;
 				break;
+
 			default: // snake
-				if (GR_GET_FTYPE(board[npos[1]][npos[0]]) == GR_BSNAKE+GSF_SNAKETAIL)
+				if (GR_GET_FULL_TYPE(board[npos[1]][npos[0]]) == GR_BASE_SNAKE+GSF_SNAKE_TAIL)
 					snake_health--;
 				else
 					snake_health /= 2;
@@ -767,36 +785,41 @@ step_hit:
 						if (defcnts[0].max != 0)
 							state_levscore++;
 					}
-					board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x] = GR_SNAKE(GSF_SNAKETAIL, 0, GR_GET_OUT(board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x]));
+					board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x] = GR_SNAKE(GSF_SNAKE_TAIL, 0, GR_GET_OUT(board[snake_pos[snake_len-1].y][snake_pos[snake_len-1].x]));
 					inval[il][0] = snake_pos[snake_len-1].x; inval[il][1] = snake_pos[snake_len-1].y; il++;
 					gui->invalidateOutput(il, inval);
 					gui->invalidateOutput(-WormikGui::INVO_LENGTH, NULL);
 				}
 				invof |= WormikGui::INVO_HEALTH;
 				break;
-			case GR_NEWDEF:
-				if (delNewdef(npos[0], npos[1]) == 0)
+
+			case GR_NEW_DEF:
+				if (!deleteNewDef(npos[0], npos[1]))
 					goto step_hit;
 				// fall through
 			case GR_NONE:
 				break;
-			case GR_POSIT:
+
+			case GR_POSITIVE:
 				snake_grow += 1;
 				state_levscore += 2;
-				decDefs(GR_POSIT);
+				decDefs(GR_POSITIVE);
 				break;
-			case GR_POSIT2:
+
+			case GR_POSITIVE_2:
 				snake_grow += 2;
 				state_levscore += 5;
-				decDefs(GR_POSIT2);
+				decDefs(GR_POSITIVE_2);
 				break;
-			case GR_NEGAT:
+
+			case GR_NEGATIVE:
 				invof |= WormikGui::INVO_HEALTH;
 				if ((snake_health -= 1) <= 0)
 					break;
-				decDefs(GR_NEGAT);
+				decDefs(GR_NEGATIVE);
 				snake_grow--;
 				break;
+
 			case GR_EXIT:
 				state_levscore += 12*state_level+8*(state_level/4);
 				invof |= WormikGui::INVO_SCORE;
@@ -819,17 +842,17 @@ step_hit:
 				unsigned old_len = snake_len;
 				memmove(snake_pos+1, snake_pos+0, snake_len*sizeof(snake_pos[0]));
 				snake_pos[0].x = npos[0]; snake_pos[0].y = npos[1];
-				board[npos[1]][npos[0]] = GR_SNAKE(GSF_SNAKEHEAD, (snake_dir+2)&3, snake_dir);
+				board[npos[1]][npos[0]] = GR_SNAKE(GSF_SNAKE_HEAD, (snake_dir+2)&3, snake_dir);
 				{
 					unsigned inval[2][2];
 					element_pos *p;
 
 					p = &snake_pos[1];
-					board[p->y][p->x] = GR_SNAKE(GSF_SNAKEBODY, GR_GET_IN(board[p->y][p->x]), snake_dir);
+					board[p->y][p->x] = GR_SNAKE(GSF_SNAKE_BODY, GR_GET_IN(board[p->y][p->x]), snake_dir);
 					inval[0][0] = p->x; inval[0][1] = p->y;
 
 					p = &snake_pos[0];
-					board[p->y][p->x] = GR_SNAKE(GSF_SNAKEHEAD, (snake_dir+2)&3, snake_dir);
+					board[p->y][p->x] = GR_SNAKE(GSF_SNAKE_HEAD, (snake_dir+2)&3, snake_dir);
 					inval[1][0] = p->x; inval[1][1] = p->y;
 
 					gui->invalidateOutput(2, inval);
@@ -854,7 +877,7 @@ step_hit:
 						freecnt++;
 					}
 					p = &snake_pos[snake_len-1];
-					board[p->y][p->x] = GR_SNAKE(GSF_SNAKETAIL, 0, GR_GET_OUT(board[p->y][p->x]));
+					board[p->y][p->x] = GR_SNAKE(GSF_SNAKE_TAIL, 0, GR_GET_OUT(board[p->y][p->x]));
 					inval[il][0] = p->x; inval[il][1] = p->y; il++;
 					gui->invalidateOutput(il, inval);
 				}
@@ -901,6 +924,7 @@ step_hit:
 			if (gui->announce(WormikGui::ANC_EXIT))
 				goto quit;
 			break;
+
 		case 2:
 			if (gui->announce(WormikGui::ANC_DEAD))
 				goto quit;
