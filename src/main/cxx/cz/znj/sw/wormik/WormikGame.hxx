@@ -18,6 +18,14 @@ class WormikGame
 public:
 	typedef unsigned char board_def;
 
+	enum {
+		TILES_COUNT_WALLS               = 180,
+		TILES_COUNT_DEATH               = 20,
+		TILES_COUNT_POSITIVE            = 50,
+		TILES_COUNT_POSITIVE_2          = 30,
+		TILES_COUNT_NEGATIVE            = 20,
+	};
+
 	/* game size */
 	enum {
 		GAME_XSIZE			= 30,
@@ -32,10 +40,10 @@ public:
 	};
 
 	enum {
-		SDIR_RIGHT,
-		SDIR_UP,
-		SDIR_LEFT,
-		SDIR_DOWN,
+		SDIR_EAST,
+		SDIR_NORTH,
+		SDIR_WEST,
+		SDIR_SOUTH,
 	};
 
 	enum {
@@ -43,28 +51,31 @@ public:
 		GR_INVALID			= 0,
 		GR_NONE				= 1,
 		GR_WALL				= 2,
-		GR_POSIT			= 3,
-		GR_POSIT2			= 4,
-		GR_NEGAT			= 5,
+		GR_POSITIVE			= 3,
+		GR_POSITIVE_2			= 4,
+		GR_NEGATIVE			= 5,
 		GR_DEATH			= 6,
 		GR_EXIT				= 7,
-		GR_NEWDEF			= 8,
-		GR_BSNAKE			= 12,
+		GR_NEW_DEF			= 8,
+		GR_BASE_SNAKE			= 12,
 
 		/* snake body types */
-		GSF_SNAKEBODY			= 0,
-		GSF_SNAKEHEAD			= 1,
-		GSF_SNAKETAIL			= 2,
+		GSF_SNAKE_BODY			= 0,
+		GSF_SNAKE_HEAD			= 1,
+		GSF_SNAKE_TAIL			= 2,
 	};
+
+	constexpr static float TIMEOUT_EXIT     = 0.75f;
+	constexpr static float TIMEOUT_POSITIVE = 0.3f;
 
 public:
 	/* board macros */
-	/* get base type GR_INVALID, ..., GR_BSNAKE */
-	static board_def		GR_GET_BTYPE(board_def n);
-	/* get full type GR_INVALID, ..., GR_BSNAKE/head, ... */
-	static board_def		GR_GET_FTYPE(board_def n);
+	/* get base type GR_INVALID, ..., GR_BASE_SNAKE */
+	static board_def		GR_GET_BASE_TYPE(board_def n);
+	/* get full type GR_INVALID, ..., GR_BASE_SNAKE/head, ... */
+	static board_def		GR_GET_FULL_TYPE(board_def n);
 	/* get snake type */
-	static board_def		GR_GET_STYPE(board_def n);
+	static board_def		GR_GET_SNAKE_TYPE(board_def n);
 	/* get snake in-direction */
 	static board_def		GR_GET_IN(board_def n);
 	/* get snake out-direction */
@@ -116,26 +127,28 @@ public:
 	virtual void			outPoint(void *gc, unsigned x, unsigned y) = 0;
 	/*  draws interval (non-newdef points only) */
 	virtual void			outGame(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1) = 0;
+	/*  draws static objects only */
+	virtual void			outStatic(void *gc, unsigned x0, unsigned y0, unsigned x1, unsigned y1) = 0;
 	/*  draws all newdefs, returns number of still timing */
 	virtual int			outNewdefs(void *gc) = 0;
 };
 
 inline WormikGame::board_def WormikGame::GR_SNAKE(board_def type, int in, int out)
 {
-	return (GR_BSNAKE+type)|(in<<4)|(out<<6);
+	return (GR_BASE_SNAKE+type)|(in<<4)|(out<<6);
 }
 
-inline WormikGame::board_def WormikGame::GR_GET_BTYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_BASE_TYPE(board_def n)
 {
-	return ((n&15) >= GR_BSNAKE)?GR_BSNAKE:n;
+	return ((n&15) >= GR_BASE_SNAKE)?GR_BASE_SNAKE:n;
 }
 
-inline WormikGame::board_def WormikGame::GR_GET_FTYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_FULL_TYPE(board_def n)
 {
 	return n&15;
 }
 
-inline WormikGame::board_def WormikGame::GR_GET_STYPE(board_def n)
+inline WormikGame::board_def WormikGame::GR_GET_SNAKE_TYPE(board_def n)
 {
 	return n&3;
 }

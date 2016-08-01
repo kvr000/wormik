@@ -16,12 +16,6 @@ class WormikGame;
 class WormikGui
 {
 public:
-	enum {
-		WINDOW_WIDTH = 640,
-		WINDOW_HEIGHT = 480,
-		AREA_INFO_X = 480,
-	};
-
 	enum {		/* announcements */
 		ANC_DEAD,
 		ANC_EXIT,
@@ -52,6 +46,8 @@ public:
 	/* output functions */
 
 	/*  draws "static" point */
+	virtual void			drawStatic(void *gc, unsigned x, unsigned y, unsigned short cont) = 0;
+	/*  draws "finished" point */
 	virtual void			drawPoint(void *gc, unsigned x, unsigned y, unsigned short cont) = 0;
 	/*  draws "newdef" point, returns 1 if it hasn't yet timed out */
 	virtual int			drawNewdef(void *gc, unsigned x, unsigned y, unsigned short newcont, double left, double total) = 0;
