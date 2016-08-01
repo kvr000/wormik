@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#ifdef _WIN32
+#if (defined _WIN32) || (defined _WIN64)
 
 #include <windows.h>
 #include <excpt.h>

@@ -126,7 +126,7 @@ public:
 
 protected:
 	int				initWindow();
-	int				initSeasonImage(SDL_Texture *img);
+	int				initSeasonImage(SDL_Surface *img);
 	int				initLevelImage(int season);
 
 	int				initGui();
@@ -427,27 +427,20 @@ void SdlWormikGui::shutdown(WormikGame *game)
 	SDL_Quit();
 }
 
-int SdlWormikGui::initSeasonImage(SDL_Texture *img)
+int SdlWormikGui::initSeasonImage(SDL_Surface *img)
 {
 	SDL_Rect s, d;
 	if (seasonImage) {
 		SDL_DestroyTexture(seasonImage);
 	}
-	if (true) {
-		seasonImage = img;
+	if ((seasonImage = SDL_CreateTextureFromSurface(windowRenderer, img)) == NULL) {
+		game->error("Failed to convert season image to current video texture: %s\n", SDL_GetError());
+		return -1;
 	}
-	else {
-		if (!(seasonImage = SDL_CreateTexture(windowRenderer, alphaPixelFormat, SDL_TEXTUREACCESS_TARGET, SIMG_WIDTH, SIMG_HEIGTH))) {
-			game->error("Failed to convert season image to current video texture: %s\n", SDL_GetError());
-			return -1;
-		}
-		if (SDL_SetRenderTarget(textureRenderer, seasonImage) < 0) {
-			game->fatal("failed to set rendering to bgSeasonImage: %s\n", SDL_GetError());
-		}
-		SDL_RenderCopy(textureRenderer, img, NULL, NULL);
-	}
+
 	if (SDL_SetRenderTarget(textureRenderer, bgSeasonImage) < 0) {
 		game->fatal("failed to set rendering to bgSeasonImage: %s\n", SDL_GetError());
+		return -1;
 	}
 	s.x = SP_BACK_X*GRECT_XSIZE; s.y = SP_BACK_Y*GRECT_YSIZE; s.w = GRECT_XSIZE; s.h = GRECT_YSIZE;
 	d.w = s.w; d.h = s.h;
@@ -472,7 +465,6 @@ int SdlWormikGui::initLevelImage(int season)
 	// we have to use SDL_Surface as the texture does not allow us to read
 	// pixel values
 	SDL_Surface *img;
-	SDL_Texture *texture;
 	SDL_Color c[sizeof(colors)/sizeof(colors[0])];
 	unsigned i;
 
@@ -501,8 +493,8 @@ int SdlWormikGui::initLevelImage(int season)
 	if (!img) {
 		game->fatal("failed to process image %s: %s\n", fname, SDL_GetError());
 	}
-	if (img->w != SIMG_WIDTH || img->h != SIMG_HEIGTH || img->format->BytesPerPixel != 4) {
-		game->fatal("%s: image has to be %dx%dx32 sized (is %dx%dx%d)\n", fname, SIMG_WIDTH, SIMG_HEIGTH, img->w, img->h, img->format->BytesPerPixel*4);
+	if (img->w != SIMG_WIDTH || img->h != SIMG_HEIGTH+1 || img->format->BytesPerPixel != 4) {
+		game->fatal("%s: image has to be %dx%dx32 sized (is %dx%dx%d)\n", fname, SIMG_WIDTH, SIMG_HEIGTH+1, img->w, img->h, img->format->BytesPerPixel*8);
 	}
 
 	if (SDL_LockSurface(img) < 0) {
@@ -511,18 +503,9 @@ int SdlWormikGui::initLevelImage(int season)
 	// find basic drawing colors, these have alpha 0 in original image
 #if 1
 	i = 0;
-	for (unsigned y = 0; i < sizeof(c)/sizeof(c[0]) && y < (unsigned)img->h; y++) {
-		for (unsigned x = 0; i < sizeof(c)/sizeof(c[0]) && x < (unsigned)img->w; x++) {
-			Uint8 a;
-			SDL_GetRGBA(*(Uint32 *)((char *)img->pixels+y*img->pitch+x*img->format->BytesPerPixel), img->format, &c[i].r, &c[i].g, &c[i].b, &a);
-			if (a == 0) {
-				//printf("found %dx%d: (%d, %d, %d)\n", y, x, c[i].r, c[i].g, c[i].b);
-				i++;
-			}
-		}
-	}
-	if (i != sizeof(c)/sizeof(c[0])) {
-		game->fatal("%s: Didn't find enough hidden pixels to get font colors: %d\n", fname, (int)i);
+	for (unsigned i = 0; i < sizeof(c)/sizeof(c[0]); ++i) {
+		Uint8 a;
+		SDL_GetRGBA(*(Uint32 *)((char *)img->pixels+SIMG_HEIGTH*img->pitch+i*img->format->BytesPerPixel), img->format, &c[i].r, &c[i].g, &c[i].b, &a);
 	}
 #else
 	for (i = 0; i < sizeof(c)/sizeof(c[0]); i++) {
@@ -535,12 +518,11 @@ int SdlWormikGui::initLevelImage(int season)
 		colors[i] = SDL_MapRGB(windowPixelFormat, c[i].r, c[i].g, c[i].b);
 	}
 
+	SDL_Surface *onlyIcons = SDL_CreateRGBSurfaceFrom((char *)img->pixels, img->w, SIMG_HEIGTH, img->format->BitsPerPixel, img->pitch, img->format->Rmask, img->format->Gmask, img->format->Bmask, img->format->Amask);
 	SDL_UnlockSurface(img);
-	if ((texture = SDL_CreateTextureFromSurface(windowRenderer, img)) == NULL) {
-		game->fatal("failed to convert surface to texture: %s\n", SDL_GetError());
-	}
+	err = initSeasonImage(onlyIcons);
 	SDL_FreeSurface(img);
-	err = initSeasonImage(texture);
+	SDL_FreeSurface(onlyIcons);
 	if (err < 0)
 		return err;
 
