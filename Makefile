@@ -2,9 +2,6 @@ PREFIX ?= /usr
 
 VERSION=2.0
 
-CC=gcc
-CXX=g++
-
 #ADV=-DTESTOPTS
 
 LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
@@ -90,6 +87,6 @@ target/.depends:
 %.o: %.cxx
 	$(CXX) -o $@ -c $< $(CFLAGS)
 %.s: %.cxx
-	$(CC) -o $@ -S $< $(CFLAGS)
+	$(CXX) -o $@ -S $< $(CFLAGS)
 
 include target/.depends

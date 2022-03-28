@@ -307,8 +307,8 @@ int SdlWormikGui::initGui()
 		game->error("Couldn't create window renderer: %s\n", SDL_GetError());
 		goto err;
 	}
-	//SDL_RenderSetLogicalSize(windowRenderer, WINDOW_WIDTH, WINDOW_HEIGHT);
-	//SDL_RenderSetIntegerScale(windowRenderer, SDL_TRUE);
+	SDL_RenderSetLogicalSize(windowRenderer, WINDOW_WIDTH, WINDOW_HEIGHT);
+	SDL_RenderSetIntegerScale(windowRenderer, SDL_TRUE);
 	alphaPixelFormat = SDL_PIXELFORMAT_ARGB8888;
 	SDL_RendererInfo rendererInfo;
 	SDL_GetRendererInfo(windowRenderer, &rendererInfo);
