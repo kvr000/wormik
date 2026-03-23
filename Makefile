@@ -4,8 +4,16 @@ VERSION=2.0
 
 #ADV=-DTESTOPTS
 
-LIBS=-lSDL2 -lSDL2_image -lSDL2_ttf
-CFLAGS=-DSVERSION=\"2.0\" -DRESOURCE_DIR=\"$(PREFIX)/share/games/wormik\" -DNDEBUG -Isrc/main/cxx/ --std=c++17 -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
+SDL_PKG = sdl3 SDL3_image SDL3_ttf
+SDL_CFLAGS := $(shell pkg-config --cflags $(SDL_PKG) 2>/dev/null)
+SDL_LIBS := $(shell pkg-config --libs $(SDL_PKG) 2>/dev/null)
+ifeq ($(SDL_LIBS),)
+SDL_LIBS = -lSDL3 -lSDL3_image -lSDL3_ttf
+SDL_CFLAGS =
+endif
+
+LIBS=$(SDL_LIBS)
+CFLAGS=-DSVERSION=\"2.0\" -DRESOURCE_DIR=\"$(PREFIX)/share/games/wormik\" -DNDEBUG -Isrc/main/cxx/ $(SDL_CFLAGS) --std=c++17 -Wall -O2 $(ACFLAGS) -fmessage-length=0 -g
 LDFLAGS=$(LIBS) -g
 #CFLAGS=-Wall -D_GNU_SOURCE -g
 #LDFLAGS=-lpng -L/usr/X11R6/lib -lX11 -g

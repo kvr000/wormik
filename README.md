@@ -18,8 +18,9 @@ LGPL license...
 
 # Installation
 
-SDL2, SDL2\_image and SDL2\_ttf libraries are required for running and appropriate
-development files for compiling.
+SDL3, SDL3\_image and SDL3\_ttf libraries are required for running and appropriate
+development files for compiling. The Makefile uses `pkg-config` when available
+(`sdl3`, `SDL3_image`, `SDL3_ttf`) and falls back to `-lSDL3 -lSDL3_image -lSDL3_ttf`.
 Makefile is simple, no autoconf or other stuff, just run make and it should
 work properly.
 Built executables and resources are placed into target/ directory.
@@ -94,3 +95,4 @@ Hope you'll enjoy it,
 Game was written roughly in 2003, based on SDL 1.2 library.
 
 In 2015, the source was published to github and game was ported to SDL 2 library.
+The GUI was later updated to SDL 3 (SDL3, SDL3\_image, SDL3\_ttf).
